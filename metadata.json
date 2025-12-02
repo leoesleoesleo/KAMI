@@ -1,0 +1,5 @@
+{
+  "name": "KAMI: Simulador Divino",
+  "description": "Un simulador de creación de civilizaciones con estética moderna y etérea. Gestiona vida, recursos y evolución en un lienzo infinito.",
+  "requestFramePermissions": []
+}
