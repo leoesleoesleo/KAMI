@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { StartScreen } from './components/StartScreen';
 import { WorldCanvas } from './components/WorldCanvas';
@@ -20,6 +19,9 @@ function App() {
 
   const [wastedManaTrigger, setWastedManaTrigger] = useState(0); 
   const [isPlacingLand, setIsPlacingLand] = useState(false);
+  
+  // New State for Person Placement
+  const [pendingPersonAttributes, setPendingPersonAttributes] = useState<EntityAttributes | null>(null);
   
   const [globalStats, setGlobalStats] = useState({ globalScore: 0, averageEnergy: 0 });
   
@@ -176,6 +178,12 @@ function App() {
         setIsPlacingLand(true);
         return;
     }
+    
+    // NEW: Handle Biobot Creation Request (Enter Placement Mode)
+    if (actionType === 'CREATE_PERSON') {
+        setPendingPersonAttributes(payload as EntityAttributes);
+        return;
+    }
 
     if (actionType === 'CREATE_RAIN') {
         const lands = gameState.entities.filter(e => e.type === EntityType.LAND);
@@ -238,18 +246,8 @@ function App() {
         }));
     }
 
-    const centerPos = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
-
     switch (actionType) {
-        case 'CREATE_PERSON':
-            const newPerson = createPersonEntity(payload as EntityAttributes, generateRandomPosition(centerPos));
-            setGameState(prev => ({ 
-                ...prev, 
-                entities: [...prev.entities, newPerson],
-                player: { ...prev.player, stats: { ...prev.player.stats, entitiesCreated: prev.player.stats.entitiesCreated + 1 } }
-            }));
-            break;
-
+        // CREATE_PERSON removed from here, moved to handlePersonPlacement
         case 'CREATE_WORK':
             Logger.log(EventType.USER_ACTION, EventCategory.USER, EventSeverity.INFO, { action: 'WORK_ORDER' });
             // Use configurable duration from GAME_CONFIG
@@ -273,6 +271,12 @@ function App() {
   };
 
   const handleLandPlacement = (position: Vector2) => {
+    // Determine which type of placement we are doing based on state
+    if (pendingPersonAttributes) {
+        handlePersonPlacement(position);
+        return;
+    }
+
     if (gameState.player.points < ACTION_COST) return;
 
     const newLand = createLandEntity(position);
@@ -288,6 +292,25 @@ function App() {
     }));
     
     setIsPlacingLand(false);
+  };
+  
+  const handlePersonPlacement = (position: Vector2) => {
+      if (!pendingPersonAttributes) return;
+      if (gameState.player.points < ACTION_COST) return;
+
+      const newPerson = createPersonEntity(pendingPersonAttributes, position);
+      
+      setGameState(prev => ({ 
+          ...prev, 
+          entities: [...prev.entities, newPerson],
+          player: { 
+              ...prev.player, 
+              points: prev.player.points - ACTION_COST,
+              stats: { ...prev.player.stats, entitiesCreated: prev.player.stats.entitiesCreated + 1, manaSpent: prev.player.stats.manaSpent + ACTION_COST } 
+          }
+      }));
+
+      setPendingPersonAttributes(null);
   };
 
   const handleEntityDrag = (id: string, position: Vector2) => {
@@ -321,7 +344,8 @@ function App() {
             onEntityClick={setSelectedEntity}
             isWatering={gameState.isWatering}
             isPlacingLand={isPlacingLand}
-            onLandPlace={handleLandPlacement}
+            isPlacingPerson={!!pendingPersonAttributes}
+            onLandPlace={handleLandPlacement} // Reused for both
             onEntityDrag={handleEntityDrag}
           />
           <GameInterface 
@@ -332,6 +356,7 @@ function App() {
             onCloseSelection={() => setSelectedEntity(null)}
             wastedManaTrigger={wastedManaTrigger}
             isPlacingLand={isPlacingLand}
+            isPlacingPerson={!!pendingPersonAttributes}
             onBuyMana={handleBuyMana}
             globalStats={globalStats}
           />

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { Logger } from '../services/LoggerService';
 import { LogEvent, EventSeverity } from '../types';
@@ -7,7 +6,7 @@ import { ChevronDown, ChevronRight, Terminal, Minimize2, Maximize2 } from 'lucid
 export const LiveConsole: React.FC = () => {
     const [logs, setLogs] = useState<LogEvent[]>([]);
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-    const [isCollapsed, setIsCollapsed] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(true); // Default to collapsed
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -58,7 +57,7 @@ export const LiveConsole: React.FC = () => {
             <div className="flex items-center justify-between px-4 py-1.5 bg-[#1a1a1a] border-b border-gray-800 select-none cursor-pointer hover:bg-[#252525]" onClick={() => setIsCollapsed(!isCollapsed)}>
                 <div className="flex items-center gap-2 text-divine-gold">
                     <Terminal size={14} />
-                    <span className="font-bold tracking-wider">KAMI-LOG LIVE STREAM</span>
+                    <span className="font-bold tracking-wider text-tech-cyan">KAMI-LOG LIVE STREAM</span>
                     <span className="text-gray-500 ml-2">({logs.length} events)</span>
                 </div>
                 <div className="text-gray-400">

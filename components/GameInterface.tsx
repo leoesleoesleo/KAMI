@@ -1,10 +1,10 @@
-
 import React, { useState, useRef, useEffect } from 'react';
-import { PlayerState, GameEntity, Gender, INITIAL_POINTS, ACTION_COST } from '../types';
-import { Plus, CloudRain, Sprout, Hammer, X, Zap, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull } from 'lucide-react';
+import { PlayerState, GameEntity, Gender, INITIAL_POINTS, ACTION_COST, EntityType } from '../types';
+import { Bot, Database, Zap, Terminal, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle } from 'lucide-react';
 import { createPersonJSON } from '../services/gameService';
 import { GAME_CONFIG } from '../gameConfig';
 import { LiveConsole } from './LiveConsole';
+import { Minimap } from './Minimap';
 
 interface GameInterfaceProps {
   player: PlayerState;
@@ -14,6 +14,7 @@ interface GameInterfaceProps {
   onCloseSelection: () => void;
   wastedManaTrigger: number;
   isPlacingLand?: boolean;
+  isPlacingPerson?: boolean;
   onBuyMana: (amount: number) => void;
   globalStats: {
       globalScore: number;
@@ -34,6 +35,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     onCloseSelection, 
     wastedManaTrigger,
     isPlacingLand,
+    isPlacingPerson,
     onBuyMana,
     globalStats
 }) => {
@@ -46,6 +48,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const [showWastedToast, setShowWastedToast] = useState(false);
   const [showSuccessMana, setShowSuccessMana] = useState(false);
   const [showKillToast, setShowKillToast] = useState(false);
+  const [showNoBotsToast, setShowNoBotsToast] = useState(false); // NEW TOAST
 
   // Player Profile Modal
   const [isPlayerProfileOpen, setPlayerProfileOpen] = useState(false);
@@ -60,7 +63,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   // Work Timer State for Selected Entity
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
-  // Reset chat when selection changes (but not when just toggling views)
+  // Reset chat when selection changes
   useEffect(() => {
     if (!selectedEntity) {
         setChatOpen(false);
@@ -111,6 +114,19 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     });
   };
 
+  const handleWorkProtocol = () => {
+      // Validate biobots existence AND ensure they are alive
+      const activeBots = entities.filter(e => e.type === EntityType.PERSON && e.attributes?.estado !== 'muerto');
+      
+      if (activeBots.length === 0) {
+          setShowNoBotsToast(true);
+          setTimeout(() => setShowNoBotsToast(false), 3000);
+          return; // Do NOT execute action, do NOT spend mana
+      }
+
+      checkManaAndExecute(() => onAction('CREATE_WORK'));
+  };
+
   const handleRedeemCode = () => {
       if (redeemCode === '1866') {
           onBuyMana(100);
@@ -119,7 +135,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
           setShowSuccessMana(true);
           setTimeout(() => setShowSuccessMana(false), 3000);
       } else {
-          alert("Código inválido");
+          alert("Código de acceso denegado");
       }
   };
 
@@ -132,8 +148,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     
     if (chatMessages.length === 0 && selectedEntity) {
         const greeting = selectedEntity.attributes?.sexo === Gender.MALE 
-            ? "Sistemas en línea. Esperando instrucciones, Creador."
-            : "Conexión establecida. ¿En qué puedo servirte hoy?";
+            ? "Núcleo en línea. Esperando protocolo, Arquitecto."
+            : "Enlace establecido. ¿Cuál es su consulta?";
         setChatMessages([{ sender: 'bot', text: greeting }]);
     }
   };
@@ -146,18 +162,18 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     setCurrentMessage('');
 
     setTimeout(() => {
-        let reply = "Procesando...";
+        let reply = "Procesando datos...";
         if (selectedEntity) {
             const personality = selectedEntity.attributes?.personalidad || 'Neutral';
             if (userText.toLowerCase().includes('hola')) {
-                reply = `Saludos. Mi estado actual es ${selectedEntity.attributes?.estado}.`;
+                reply = `Saludos. Estado operativo: ${selectedEntity.attributes?.estado}.`;
             } else if (userText.toLowerCase().includes('trabaja')) {
-                reply = "Entendido. Buscaré una tarea productiva de inmediato.";
+                reply = "Afirmativo. Iniciando subrutina de producción.";
             } else {
-                if (personality === 'Lógico') reply = "Análisis completado. Los parámetros son aceptables.";
-                else if (personality === 'Curioso') reply = "¿Es esa la voluntad del cosmos? Interesante...";
-                else if (personality === 'Protector') reply = "Mantendré la seguridad del perímetro.";
-                else reply = "Recibido. Transmisión guardada en mi memoria central.";
+                if (personality === 'Lógico') reply = "Cálculo finalizado. Probabilidad de éxito: 99.9%.";
+                else if (personality === 'Curioso') reply = "¿Es este un bug en la matriz o una característica?";
+                else if (personality === 'Protector') reply = "Firewall activo. Perímetro seguro.";
+                else reply = "Datos recibidos. Actualizando base de conocimientos.";
             }
         }
         setChatMessages(prev => [...prev, { sender: 'bot', text: reply }]);
@@ -176,9 +192,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         onAction('KILL_ENTITY', selectedEntity.id);
         setShowKillToast(true);
         setTimeout(() => setShowKillToast(false), 3000);
-        
-        // Close modal immediately to show result on canvas
-        onCloseSelection();
+        onCloseSelection(); 
     }
   };
 
@@ -188,85 +202,103 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   };
 
   return (
-    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-6 z-20">
+    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 md:p-6 z-20 font-sans">
       
-      {/* Placement Mode Toast */}
+      {/* Placement Mode Toast - Land */}
       {isPlacingLand && (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-divine-gold text-modern-dark px-8 py-4 rounded-full shadow-2xl animate-pulse flex items-center gap-3 z-[60] pointer-events-auto border-2 border-white/50">
-            <MapPin size={24} className="animate-bounce" />
-            <span className="font-serif font-bold text-lg">Haz CLICK en el mapa para crear Tierra</span>
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-neon-green/90 backdrop-blur text-black px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-[0_0_20px_rgba(16,185,129,0.5)] animate-pulse flex items-center gap-3 z-[60] pointer-events-auto border border-neon-green w-max max-w-[90vw] whitespace-normal text-center">
+            <Crosshair size={20} className="shrink-0" />
+            <span className="font-mono font-bold text-xs md:text-sm">SELECCIONAR COORDENADAS</span>
+        </div>
+      )}
+
+      {/* Placement Mode Toast - Person */}
+      {isPlacingPerson && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-tech-cyan/90 backdrop-blur text-black px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-[0_0_20px_rgba(6,182,212,0.5)] animate-pulse flex items-center gap-3 z-[60] pointer-events-auto border border-tech-cyan w-max max-w-[90vw] whitespace-normal text-center">
+            <Fingerprint size={20} className="shrink-0" />
+            <span className="font-mono font-bold text-xs md:text-sm">GÉNESIS: CONFIRMAR UBICACIÓN</span>
         </div>
       )}
 
       {/* Toast Notification for Mana */}
       {showManaToast && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-red-500 text-white px-6 py-3 rounded-full shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto">
-            <X size={20} />
-            <span className="font-bold">¡No tienes suficiente Maná!</span>
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-alert-red text-white px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto border border-red-500 w-max max-w-[90vw] whitespace-normal text-center">
+            <X size={18} className="shrink-0" />
+            <span className="font-mono font-bold text-xs md:text-sm">¡ENERGÍA INSUFICIENTE!</span>
+        </div>
+      )}
+
+      {/* Toast Notification for NO UNITS FOUND */}
+      {showNoBotsToast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-yellow-500/90 text-black px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto border border-yellow-300 w-max max-w-[90vw] whitespace-normal text-center">
+            <AlertTriangle size={18} className="shrink-0" />
+            <span className="font-mono font-bold text-xs md:text-sm">ERROR: NO UNIDADES OPERATIVAS</span>
         </div>
       )}
 
       {/* Toast Notification for Success Mana Purchase */}
       {showSuccessMana && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded-full shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto border-2 border-white">
-            <CheckCircle size={20} />
-            <span className="font-bold">¡Ofrenda Recibida! +100 Maná</span>
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-neon-green/20 backdrop-blur-md text-neon-green px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto border border-neon-green w-max max-w-[90vw] whitespace-normal text-center">
+            <CheckCircle size={18} className="shrink-0" />
+            <span className="font-mono font-bold text-xs md:text-sm">RECARGA EXITOSA +100</span>
         </div>
       )}
 
       {/* Toast Notification for Wasted Mana */}
       {showWastedToast && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-full shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto border-2 border-red-800">
-            <Activity size={20} />
-            <span className="font-bold">¡MANÁ DESPERDICIADO! No hay tierra fértil.</span>
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-alert-red/90 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto border border-red-500 w-max text-center max-w-[90vw] whitespace-normal">
+            <Activity size={18} className="shrink-0" />
+            <span className="font-mono font-bold text-xs md:text-sm">¡ERROR! OBJETIVO NO VÁLIDO.</span>
         </div>
       )}
 
       {/* Toast Notification for Kill */}
       {showKillToast && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-gray-900 text-red-500 px-6 py-3 rounded-full shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto border border-red-500">
-            <Skull size={20} />
-            <span className="font-bold">Unidad Terminada (Congelada)</span>
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-gray-900/90 text-alert-red px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto border border-alert-red w-max max-w-[90vw] whitespace-normal text-center">
+            <Skull size={18} className="shrink-0" />
+            <span className="font-mono font-bold text-xs md:text-sm">TERMINACIÓN EJECUTADA</span>
         </div>
       )}
 
-      {/* Top Bar Wrapper */}
-      <div className="flex items-start justify-between pointer-events-auto w-full">
-        {/* Left: Player Profile */}
+      {/* Top Bar Wrapper - Responsive */}
+      <div className="flex flex-col md:flex-row items-center md:items-start justify-between pointer-events-auto w-full gap-3 md:gap-0">
+        
+        {/* Left: Player Profile & Mana */}
         <div 
             onClick={() => setPlayerProfileOpen(true)}
-            className="bg-white/80 backdrop-blur-md rounded-2xl shadow-lg p-3 flex items-center gap-4 border border-divine-gold/30 cursor-pointer hover:bg-white transition-colors"
+            className="bg-panel-dark backdrop-blur-md rounded-xl shadow-lg p-2 md:p-3 flex items-center gap-3 md:gap-4 border border-tech-cyan/30 cursor-pointer hover:bg-slate-800 transition-colors w-full md:w-auto justify-center md:justify-start group"
         >
-            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-divine-gold">
+            <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg overflow-hidden border border-tech-cyan shrink-0 relative">
                 <img src={player.avatarUrl} alt="God Avatar" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-tech-cyan/20 group-hover:bg-transparent transition-colors" />
             </div>
-            <div>
-                <h2 className="font-serif font-bold text-modern-dark">{player.name}</h2>
-                <div className="flex items-center gap-1 text-divine-gold font-bold">
-                    <Zap size={16} fill="currentColor" />
-                    <span>{player.points} Maná</span>
+            <div className="flex flex-col items-start">
+                <h2 className="font-tech font-bold text-gray-100 text-sm md:text-base tracking-wide">{player.name}</h2>
+                <div className="flex items-center gap-1 text-tech-cyan font-mono font-bold text-xs md:text-sm">
+                    <Zap size={14} fill="currentColor" />
+                    <span>{player.points} ENERGY</span>
                 </div>
             </div>
         </div>
 
         {/* Right: Global Stats Group */}
-        <div className="flex gap-3">
+        <div className="flex gap-2 md:gap-3 w-full md:w-auto justify-center md:justify-end">
              {/* Global Production Stat */}
-             <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-lg p-3 flex flex-col items-center justify-center min-w-[120px] border border-divine-gold/30 h-16">
-                 <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider flex items-center gap-1">
-                     <Trophy size={12} className="text-divine-gold" /> Producción
+             <div className="bg-panel-dark backdrop-blur-md rounded-xl shadow-lg p-2 md:p-3 flex flex-col items-center justify-center flex-1 md:flex-none md:min-w-[120px] border border-tech-purple/30 h-14 md:h-16 group hover:border-tech-purple/60 transition-colors">
+                 <span className="text-[9px] md:text-[10px] text-tech-purple font-mono font-bold uppercase tracking-wider flex items-center gap-1">
+                     <Trophy size={10} /> PRODUCCIÓN
                  </span>
-                 <span className="text-xl font-serif font-bold text-modern-dark">
+                 <span className="text-base md:text-xl font-tech font-bold text-white leading-tight drop-shadow-[0_0_5px_rgba(139,92,246,0.5)]">
                      {globalStats.globalScore.toLocaleString()}
                  </span>
             </div>
 
             {/* Average Energy Stat */}
-            <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-lg p-3 flex flex-col items-center justify-center min-w-[120px] border border-divine-gold/30 h-16">
-                 <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider flex items-center gap-1">
-                     <Battery size={12} className={globalStats.averageEnergy > 50 ? "text-green-500" : "text-red-500"} /> Energía Vital
+            <div className="bg-panel-dark backdrop-blur-md rounded-xl shadow-lg p-2 md:p-3 flex flex-col items-center justify-center flex-1 md:flex-none md:min-w-[120px] border border-neon-green/30 h-14 md:h-16 group hover:border-neon-green/60 transition-colors">
+                 <span className="text-[9px] md:text-[10px] text-neon-green font-mono font-bold uppercase tracking-wider flex items-center gap-1">
+                     <Battery size={10} /> INTEGRIDAD
                  </span>
-                 <span className={`text-xl font-serif font-bold ${globalStats.averageEnergy > 70 ? 'text-green-600' : globalStats.averageEnergy > 30 ? 'text-yellow-600' : 'text-red-600'}`}>
+                 <span className={`text-base md:text-xl font-tech font-bold leading-tight ${globalStats.averageEnergy > 70 ? 'text-neon-green' : globalStats.averageEnergy > 30 ? 'text-yellow-500' : 'text-alert-red'}`}>
                      {globalStats.averageEnergy}%
                  </span>
             </div>
@@ -275,60 +307,61 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 
       {/* Player Profile Modal */}
       {isPlayerProfileOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-auto">
-              <div className="bg-white rounded-3xl p-8 w-[400px] shadow-2xl border-2 border-divine-gold relative overflow-y-auto max-h-[90vh]">
-                  <button onClick={() => setPlayerProfileOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto p-4">
+              <div className="bg-slate-900 rounded-2xl p-6 md:p-8 w-full max-w-[400px] shadow-[0_0_40px_rgba(6,182,212,0.15)] border border-tech-cyan/50 relative overflow-y-auto max-h-[90vh]">
+                  <button onClick={() => setPlayerProfileOpen(false)} className="absolute top-4 right-4 text-gray-500 hover:text-alert-red transition-colors">
                       <X size={24} />
                   </button>
                   <div className="flex flex-col items-center mb-6">
-                      <div className="w-24 h-24 rounded-full border-4 border-divine-gold mb-4 overflow-hidden shadow-lg">
+                      <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl border-2 border-tech-cyan mb-4 overflow-hidden shadow-lg relative">
                           <img src={player.avatarUrl} className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 border-t border-white/20" />
                       </div>
-                      <h2 className="text-3xl font-serif font-bold text-modern-dark">{player.name}</h2>
-                      <p className="text-divine-gold font-bold tracking-widest uppercase text-sm">Deidad Suprema</p>
+                      <h2 className="text-2xl md:text-3xl font-tech font-bold text-white text-center tracking-wide">{player.name}</h2>
+                      <p className="text-tech-cyan font-mono font-bold tracking-widest uppercase text-xs md:text-sm">Arquitecto del Sistema</p>
                   </div>
                   
-                  <div className="space-y-4">
-                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                          <div className="flex items-center gap-3 text-gray-600">
-                              <User size={20} />
-                              <span>Bio-Bots Creados</span>
+                  <div className="space-y-3 md:space-y-4 font-mono">
+                      <div className="flex items-center justify-between p-3 md:p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+                          <div className="flex items-center gap-3 text-gray-400">
+                              <User size={18} />
+                              <span className="text-sm md:text-base">Unidades Activas</span>
                           </div>
-                          <span className="font-bold text-xl">{player.stats.entitiesCreated}</span>
+                          <span className="font-bold text-lg md:text-xl text-white">{player.stats.entitiesCreated}</span>
                       </div>
-                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                          <div className="flex items-center gap-3 text-gray-600">
-                              <Sprout size={20} />
-                              <span>Tierras Creadas</span>
+                      <div className="flex items-center justify-between p-3 md:p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+                          <div className="flex items-center gap-3 text-gray-400">
+                              <Database size={18} />
+                              <span className="text-sm md:text-base">Nodos de Datos</span>
                           </div>
-                          <span className="font-bold text-xl">{player.stats.landsCreated}</span>
+                          <span className="font-bold text-lg md:text-xl text-white">{player.stats.landsCreated}</span>
                       </div>
-                      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                          <div className="flex items-center gap-3 text-gray-600">
-                              <Zap size={20} />
-                              <span>Maná Consumido</span>
+                      <div className="flex items-center justify-between p-3 md:p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+                          <div className="flex items-center gap-3 text-gray-400">
+                              <Zap size={18} />
+                              <span className="text-sm md:text-base">Energía Total</span>
                           </div>
-                          <span className="font-bold text-xl text-divine-gold">{player.stats.manaSpent}</span>
+                          <span className="font-bold text-lg md:text-xl text-tech-cyan">{player.stats.manaSpent}</span>
                       </div>
                       
                       {/* Shop Section */}
-                      <div className="pt-4 border-t border-gray-100">
-                          <h4 className="font-serif font-bold text-gray-800 mb-2 flex items-center gap-2">
-                             <ShoppingBag size={18} /> Ofrendas & Códigos
+                      <div className="pt-4 border-t border-slate-700">
+                          <h4 className="font-tech font-bold text-gray-300 mb-3 flex items-center gap-2 text-sm md:text-base">
+                             <ShoppingBag size={18} className="text-tech-purple" /> Inyección de Recursos
                           </h4>
                           <div className="flex gap-2">
                               <input 
                                 type="text" 
-                                placeholder="Código de Regalo" 
-                                className="flex-1 border border-gray-300 rounded p-2 focus:border-divine-gold outline-none transition-colors"
+                                placeholder="Ingresar Código" 
+                                className="flex-1 bg-black/40 border border-slate-600 rounded p-2 focus:border-tech-cyan outline-none transition-colors text-sm text-white font-mono"
                                 value={redeemCode}
                                 onChange={(e) => setRedeemCode(e.target.value)}
                               />
                               <button 
                                 onClick={handleRedeemCode}
-                                className="bg-divine-gold text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-yellow-600 transition-colors shadow-md"
+                                className="bg-tech-purple/20 border border-tech-purple text-tech-purple px-4 py-2 rounded-lg font-bold text-xs md:text-sm hover:bg-tech-purple hover:text-white transition-all shadow-[0_0_10px_rgba(139,92,246,0.2)]"
                               >
-                                  Canjear
+                                  EJECUTAR
                               </button>
                           </div>
                       </div>
@@ -339,46 +372,49 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 
       {/* Selected Entity Modal (Bottom Left) */}
       {selectedEntity && selectedEntity.attributes && !isChatOpen && (
-        <div className="pointer-events-auto absolute left-6 bottom-52 w-80 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/40 p-5 animate-[float_4s_ease-in-out_infinite] z-40">
-            <button onClick={onCloseSelection} className="absolute top-2 right-2 text-gray-400 hover:text-red-500">
+        <div className="pointer-events-auto absolute left-4 md:left-24 bottom-24 md:bottom-24 w-[calc(100%-2rem)] md:w-80 bg-slate-900/90 backdrop-blur-xl rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.5)] border border-slate-700 p-4 md:p-5 z-40">
+            <button onClick={onCloseSelection} className="absolute top-2 right-2 text-gray-500 hover:text-alert-red transition-colors">
                 <X size={18} />
             </button>
             <div className="flex items-center gap-4 mb-4">
-                <img src={selectedEntity.avatarUrl} alt="Avatar" className={`w-16 h-16 rounded-full border-2 border-divine-gold shadow-md bg-gray-100 ${selectedEntity.attributes.estado === 'muerto' ? 'grayscale' : ''}`} />
+                <div className={`w-14 h-14 md:w-16 md:h-16 rounded-lg border border-tech-cyan shadow-lg bg-slate-800 overflow-hidden relative ${selectedEntity.attributes.estado === 'muerto' ? 'grayscale opacity-50' : ''}`}>
+                     <img src={selectedEntity.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                     {selectedEntity.attributes.estado !== 'muerto' && (
+                         <div className="absolute bottom-0 left-0 w-full h-1 bg-tech-cyan animate-pulse" />
+                     )}
+                </div>
                 <div>
-                    <h3 className="font-serif font-bold text-xl text-modern-dark">{selectedEntity.attributes.nombre}</h3>
-                    <p className="text-xs text-gray-500 uppercase tracking-widest">{selectedEntity.attributes.sexo} • Ciclo {selectedEntity.attributes.edad}</p>
+                    <h3 className="font-tech font-bold text-lg md:text-xl text-white tracking-wide">{selectedEntity.attributes.nombre}</h3>
+                    <p className="text-[10px] md:text-xs text-tech-cyan font-mono uppercase tracking-widest">{selectedEntity.attributes.sexo} • v.{selectedEntity.attributes.edad}.0</p>
                 </div>
             </div>
             
-            <div className="space-y-2 text-sm text-gray-700 font-sans mb-4">
-                <div className="flex justify-between border-b border-gray-100 pb-1">
-                    <span>Clase:</span>
-                    <span className="font-semibold">{selectedEntity.attributes.personalidad}</span>
+            <div className="space-y-2 text-xs md:text-sm text-gray-300 font-mono mb-4">
+                <div className="flex justify-between border-b border-slate-700 pb-1">
+                    <span className="text-gray-500">Módulo:</span>
+                    <span className="font-semibold text-tech-purple">{selectedEntity.attributes.personalidad}</span>
                 </div>
-                <div className="flex justify-between border-b border-gray-100 pb-1">
-                    <span>Energía:</span>
-                    <span className={`font-semibold ${selectedEntity.attributes.energia > 50 ? 'text-green-600' : 'text-red-600'}`}>{Math.round(selectedEntity.attributes.energia)}%</span>
+                <div className="flex justify-between border-b border-slate-700 pb-1">
+                    <span className="text-gray-500">Batería:</span>
+                    <span className={`font-semibold ${selectedEntity.attributes.energia > 50 ? 'text-neon-green' : 'text-alert-red'}`}>{Math.round(selectedEntity.attributes.energia)}%</span>
                 </div>
-                {/* Individual Score Display */}
-                <div className="flex justify-between border-b border-gray-100 pb-1">
-                    <span>Puntos:</span>
-                    <span className="font-semibold text-divine-gold flex items-center gap-1">
+                <div className="flex justify-between border-b border-slate-700 pb-1">
+                    <span className="text-gray-500">Output:</span>
+                    <span className="font-semibold text-tech-cyan flex items-center gap-1">
                         <BarChart3 size={14} /> {Math.floor(selectedEntity.attributes.individualScore)}
                     </span>
                 </div>
-                <div className="flex justify-between border-b border-gray-100 pb-1">
-                    <span>Actividad:</span>
+                <div className="flex justify-between border-b border-slate-700 pb-1">
+                    <span className="text-gray-500">Estado:</span>
                     <span className="font-semibold capitalize flex items-center gap-1">
-                        {/* Status Check for Frozen State */}
                         {selectedEntity.attributes.estado === 'muerto' ? (
-                            <span className="text-pink-600 animate-pulse font-bold">Muriendo</span>
+                            <span className="text-pink-600 animate-pulse font-bold">FALLO CRÍTICO</span>
                         ) : (
-                            <span className="text-blue-600">{selectedEntity.attributes.estado}</span>
+                            <span className="text-blue-400">{selectedEntity.attributes.estado}</span>
                         )}
 
                         {selectedEntity.attributes.estado === 'trabajando' && timeLeft !== null && (
-                            <span className="text-red-500 font-bold ml-1 flex items-center">
+                            <span className="text-orange-400 font-bold ml-1 flex items-center">
                                 <Clock size={12} className="mr-1"/> {timeLeft}s
                             </span>
                         )}
@@ -390,17 +426,17 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                 <button 
                     onClick={openChat}
                     disabled={selectedEntity.attributes.estado === 'muerto'}
-                    className="flex-1 bg-modern-dark text-ethereal-white py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 bg-slate-800 border border-slate-600 text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-tech-cyan/10 hover:border-tech-cyan hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm font-mono"
                 >
                     <MessageCircle size={16} />
-                    <span>Chat</span>
+                    <span>CONSOLA</span>
                 </button>
 
                 {GAME_CONFIG.DEATH.ENABLE_MANUAL_KILL && selectedEntity.attributes.estado !== 'muerto' && (
                     <button 
                         onClick={handleKill}
-                        className="w-10 bg-red-100 text-red-600 rounded-lg flex items-center justify-center hover:bg-red-600 hover:text-white transition-colors"
-                        title="Matar Bio-Bot"
+                        className="w-10 bg-alert-red/10 border border-alert-red/50 text-alert-red rounded-lg flex items-center justify-center hover:bg-alert-red hover:text-white transition-all"
+                        title="Terminar Proceso"
                     >
                         <Skull size={18} />
                     </button>
@@ -411,23 +447,23 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 
       {/* Chat Modal */}
       {isChatOpen && selectedEntity && (
-        <div className="pointer-events-auto absolute left-6 bottom-52 w-80 h-96 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-divine-gold/50 flex flex-col overflow-hidden z-50">
+        <div className="pointer-events-auto absolute left-4 md:left-24 bottom-24 md:bottom-24 w-[calc(100%-2rem)] md:w-80 h-80 md:h-96 bg-slate-900/95 backdrop-blur-xl rounded-xl shadow-2xl border border-tech-cyan/40 flex flex-col overflow-hidden z-50">
             {/* Header */}
-            <div className="p-3 bg-modern-dark text-white flex justify-between items-center">
+            <div className="p-3 bg-slate-950 text-white flex justify-between items-center border-b border-slate-800">
                 <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-white overflow-hidden">
+                    <div className="w-8 h-8 rounded bg-slate-800 overflow-hidden border border-slate-600">
                         <img src={selectedEntity.avatarUrl} className="w-full h-full object-cover" />
                     </div>
-                    <span className="font-serif font-bold">{selectedEntity.attributes?.nombre}</span>
+                    <span className="font-mono font-bold text-sm text-tech-cyan">{selectedEntity.attributes?.nombre}</span>
                 </div>
-                <button onClick={closeChat}><X size={18} /></button>
+                <button onClick={closeChat} className="text-gray-500 hover:text-white"><X size={18} /></button>
             </div>
             
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900/50 font-mono">
                 {chatMessages.map((msg, idx) => (
                     <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[80%] p-2 rounded-lg text-sm ${msg.sender === 'user' ? 'bg-divine-gold text-white rounded-tr-none' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none shadow-sm'}`}>
+                        <div className={`max-w-[85%] p-2 rounded-lg text-xs md:text-sm ${msg.sender === 'user' ? 'bg-tech-cyan/20 text-tech-cyan border border-tech-cyan/50 rounded-tr-none' : 'bg-slate-800 border border-slate-700 text-gray-300 rounded-tl-none'}`}>
                             {msg.text}
                         </div>
                     </div>
@@ -436,18 +472,18 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
             </div>
 
             {/* Input Area */}
-            <div className="p-3 border-t bg-white flex gap-2">
+            <div className="p-3 border-t border-slate-800 bg-slate-950 flex gap-2">
                 <input 
                     type="text" 
                     value={currentMessage}
                     onChange={(e) => setCurrentMessage(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                    placeholder="Escribe un mensaje..."
-                    className="flex-1 bg-gray-100 rounded-full px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-divine-gold"
+                    placeholder="Comando de texto..."
+                    className="flex-1 bg-slate-900 rounded border border-slate-700 px-3 py-2 text-xs md:text-sm text-white outline-none focus:border-tech-cyan font-mono"
                 />
                 <button 
                     onClick={handleSendMessage}
-                    className="bg-modern-dark text-divine-gold p-2 rounded-full hover:bg-black transition-colors"
+                    className="bg-tech-cyan/20 border border-tech-cyan text-tech-cyan p-2 rounded hover:bg-tech-cyan hover:text-black transition-colors"
                 >
                     <Send size={16} />
                 </button>
@@ -455,97 +491,92 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         </div>
       )}
 
-      {/* Bottom Bar: Actions */}
-      <div className="pointer-events-auto flex justify-center gap-4 pb-4 absolute bottom-[200px] left-0 right-0 z-30 pointer-events-none">
-          <div className="flex gap-4 pointer-events-auto">
-            {/* Create Person Button */}
-            <div className="relative group">
+      {/* LEFT Vertical Toolbar (HUD) - REDESIGNED */}
+      <div className="pointer-events-auto absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-30">
+          <div className="flex flex-col gap-3 bg-slate-900/80 backdrop-blur-xl p-2 rounded-xl border border-white/10 shadow-2xl">
+            {/* Create Person Button - Bot Icon */}
+            <div className="relative group shrink-0">
                 <button 
                     onClick={() => checkManaAndExecute(() => setModalOpen(true))}
-                    disabled={isPlacingLand}
-                    className="w-16 h-16 rounded-full bg-ethereal-white border-2 border-divine-gold shadow-lg flex items-center justify-center text-divine-gold hover:bg-divine-gold hover:text-white transition-all transform hover:-translate-y-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isPlacingLand || isPlacingPerson}
+                    className={`w-10 h-10 md:w-11 md:h-11 rounded-lg border flex items-center justify-center transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed ${isPlacingPerson ? 'bg-tech-cyan text-black border-white animate-pulse shadow-[0_0_20px_rgba(6,182,212,0.8)]' : 'bg-slate-800 border-tech-cyan/40 text-tech-cyan hover:bg-tech-cyan hover:text-black hover:shadow-[0_0_15px_rgba(6,182,212,0.4)]'}`}
+                    title="Génesis BioBot"
                 >
-                    <Plus size={32} />
+                    <Bot size={20} />
                 </button>
-                <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black/80 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                    Crear Especie (-{ACTION_COST})
-                </span>
             </div>
 
-            {/* Create Land */}
-            <div className="relative group">
+            {/* Create Land - Database Icon */}
+            <div className="relative group shrink-0">
                 <button 
                     onClick={() => checkManaAndExecute(() => onAction('CREATE_LAND'))}
-                    className={`w-16 h-16 rounded-full border-2 shadow-lg flex items-center justify-center transition-all transform hover:-translate-y-2 ${isPlacingLand ? 'bg-green-600 text-white border-green-700 animate-pulse' : 'bg-ethereal-white border-green-500 text-green-600 hover:bg-green-500 hover:text-white'}`}
+                    disabled={isPlacingPerson}
+                    className={`w-10 h-10 md:w-11 md:h-11 rounded-lg border flex items-center justify-center transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed ${isPlacingLand ? 'bg-neon-green text-black border-white animate-pulse shadow-[0_0_20px_rgba(34,197,94,0.8)]' : 'bg-slate-800 border-neon-green/40 text-neon-green hover:bg-neon-green hover:text-black hover:shadow-[0_0_15px_rgba(34,197,94,0.4)]'}`}
+                    title="Crear Nodo de Datos"
                 >
-                    <Sprout size={32} />
+                    <Database size={20} />
                 </button>
-                <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black/80 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                    Tierra Fértil (-{ACTION_COST})
-                </span>
             </div>
 
-            {/* Rain (Watering) */}
-            <div className="relative group">
+            {/* Rain (Energy Charge) - Zap Icon */}
+            <div className="relative group shrink-0">
                 <button 
                     onClick={() => checkManaAndExecute(() => onAction('CREATE_RAIN'))}
-                    disabled={isPlacingLand}
-                    className="w-16 h-16 rounded-full bg-ethereal-white border-2 border-blue-400 shadow-lg flex items-center justify-center text-blue-500 hover:bg-blue-400 hover:text-white transition-all transform hover:-translate-y-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isPlacingLand || isPlacingPerson}
+                    className="w-10 h-10 md:w-11 md:h-11 rounded-lg bg-slate-800 border border-blue-500/40 flex items-center justify-center text-blue-400 hover:bg-blue-500 hover:text-white transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-[0_0_15px_rgba(59,130,246,0.4)]"
+                    title="Carga Energética"
                 >
-                    <CloudRain size={32} />
+                    <Zap size={20} />
                 </button>
-                <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black/80 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                    Regar Cultivos (-{ACTION_COST})
-                </span>
             </div>
 
-            {/* Work */}
-            <div className="relative group">
+            {/* Work - Terminal Icon */}
+            <div className="relative group shrink-0">
                 <button 
-                    onClick={() => checkManaAndExecute(() => onAction('CREATE_WORK'))}
-                    disabled={isPlacingLand}
-                    className="w-16 h-16 rounded-full bg-ethereal-white border-2 border-orange-400 shadow-lg flex items-center justify-center text-orange-500 hover:bg-orange-400 hover:text-white transition-all transform hover:-translate-y-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleWorkProtocol}
+                    disabled={isPlacingLand || isPlacingPerson}
+                    className="w-10 h-10 md:w-11 md:h-11 rounded-lg bg-slate-800 border border-orange-500/40 flex items-center justify-center text-orange-500 hover:bg-orange-500 hover:text-white transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-[0_0_15px_rgba(249,115,22,0.4)]"
+                    title="Protocolo de Trabajo"
                 >
-                    <Hammer size={32} />
+                    <Terminal size={20} />
                 </button>
-                <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black/80 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                    Orden de Trabajo (-{ACTION_COST})
-                </span>
             </div>
         </div>
       </div>
 
       {/* Creation Modal */}
       {isCreationModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm pointer-events-auto">
-            <div className="bg-white rounded-2xl p-8 w-96 shadow-2xl border-t-4 border-divine-gold">
-                <h3 className="font-serif text-2xl font-bold mb-6 text-center text-modern-dark">Génesis de Especie</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto p-4">
+            <div className="bg-slate-900 rounded-xl p-6 md:p-8 w-full max-w-sm shadow-[0_0_50px_rgba(6,182,212,0.2)] border border-tech-cyan/50">
+                <h3 className="font-tech text-xl md:text-2xl font-bold mb-6 text-center text-white tracking-widest uppercase flex items-center justify-center gap-2">
+                    <Cpu size={24} className="text-tech-cyan"/> Génesis de BioBot
+                </h3>
                 
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-sm font-bold text-gray-500 mb-1">Tipo de Bio-Forma</label>
+                        <label className="block text-sm font-bold text-gray-400 mb-1 font-mono">Tipo de Unidad</label>
                         <div className="flex gap-2">
                             <button 
                                 onClick={() => setCreationGender(Gender.MALE)}
-                                className={`flex-1 py-3 rounded-lg border transition-all ${creationGender === Gender.MALE ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'border-gray-200 hover:border-blue-400'}`}
+                                className={`flex-1 py-3 rounded border transition-all text-sm md:text-base font-mono ${creationGender === Gender.MALE ? 'bg-blue-600/20 border-blue-500 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.3)]' : 'bg-slate-800 border-slate-700 text-gray-500 hover:border-blue-500/50'}`}
                             >
-                                Macho (Alpha)
+                                ALFA (M)
                             </button>
                             <button 
                                 onClick={() => setCreationGender(Gender.FEMALE)}
-                                className={`flex-1 py-3 rounded-lg border transition-all ${creationGender === Gender.FEMALE ? 'bg-pink-600 border-pink-600 text-white shadow-md' : 'border-gray-200 hover:border-pink-400'}`}
+                                className={`flex-1 py-3 rounded border transition-all text-sm md:text-base font-mono ${creationGender === Gender.FEMALE ? 'bg-pink-600/20 border-pink-500 text-pink-400 shadow-[0_0_10px_rgba(236,72,153,0.3)]' : 'bg-slate-800 border-slate-700 text-gray-500 hover:border-pink-500/50'}`}
                             >
-                                Hembra (Beta)
+                                BETA (F)
                             </button>
                         </div>
                     </div>
 
                     <div>
-                         <label className="block text-sm font-bold text-gray-500 mb-1">Designación (Opcional)</label>
+                         <label className="block text-sm font-bold text-gray-400 mb-1 font-mono">Designación</label>
                          <input 
                             type="text" 
-                            className="w-full border border-gray-300 rounded p-2 focus:border-divine-gold outline-none"
-                            placeholder="Ej: Unit-734"
+                            className="w-full bg-slate-800 border border-slate-600 rounded p-2 focus:border-tech-cyan outline-none text-white font-mono"
+                            placeholder="Ej: X-99"
                             value={creationName}
                             onChange={(e) => setCreationName(e.target.value)}
                          />
@@ -554,21 +585,26 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                     <div className="pt-4 flex gap-2">
                         <button 
                             onClick={() => setModalOpen(false)}
-                            className="flex-1 py-3 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                            className="flex-1 py-3 text-gray-400 hover:bg-slate-800 rounded transition-colors text-sm md:text-base font-mono border border-transparent"
                         >
-                            Cancelar
+                            CANCELAR
                         </button>
                         <button 
                             onClick={handleCreatePerson}
-                            className="flex-1 py-3 bg-divine-gold text-white font-bold rounded-lg hover:bg-yellow-600 transition-colors"
+                            className="flex-1 py-3 bg-tech-cyan/20 border border-tech-cyan text-tech-cyan font-bold rounded hover:bg-tech-cyan hover:text-black transition-all text-sm md:text-base font-mono shadow-[0_0_15px_rgba(6,182,212,0.3)]"
                         >
-                            Crear (-{ACTION_COST} Maná)
+                            INICIAR (-{ACTION_COST})
                         </button>
                     </div>
                 </div>
             </div>
         </div>
       )}
+      
+      {/* MINIMAP */}
+      <div className="pointer-events-auto absolute right-4 bottom-32 md:bottom-32 z-30">
+        <Minimap entities={entities} />
+      </div>
 
       {/* LIVE CONSOLE INTEGRATION */}
       <div className="pointer-events-auto relative z-50">

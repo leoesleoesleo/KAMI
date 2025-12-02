@@ -21,7 +21,7 @@ export const AVATAR_PRESETS = [
   "https://api.dicebear.com/9.x/micah/svg?seed=Isabella&backgroundColor=b6e3f4"
 ];
 
-// Modern Solarpunk/Ethereal Landscape for Start Screen
-export const BACKGROUND_IMAGE = "https://images.unsplash.com/photo-1499002238440-d264edd596ec?q=80&w=2070&auto=format&fit=crop";
+// High-Tech Digital Landscape / Circuit Board City
+export const BACKGROUND_IMAGE = "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=2070&auto=format&fit=crop";
 
 export const WORLD_SIZE = 3000;

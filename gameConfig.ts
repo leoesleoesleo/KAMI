@@ -15,9 +15,9 @@ export const GAME_CONFIG = {
   },
   BIOBOT: {
     // Energy Decay Rate (Lower value = Slower energy loss)
-    ENERGY_DECAY_IDLE: 0.02, // Before: 0.05
-    ENERGY_DECAY_WORK: 0.08, // Before: 0.15
-    ENERGY_DECAY_MOVE: 0.04, // Before: 0.08
+    ENERGY_DECAY_IDLE: 0.02, 
+    ENERGY_DECAY_WORK: 0.08, 
+    ENERGY_DECAY_MOVE: 0.04, 
     ENERGY_RECHARGE_RATE: 0.8, // Energy gained per tick
     FEEDING_RADIUS: 80,
     MAX_ENERGY: 100,
