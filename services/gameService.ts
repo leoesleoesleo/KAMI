@@ -1,5 +1,5 @@
 
-import { EntityAttributes, Gender, Vector2, EntityType, GameEntity, LandAttributes, EventType, EventCategory, EventSeverity } from '../types';
+import { EntityAttributes, Gender, Vector2, EntityType, GameEntity, LandAttributes, EventType, EventCategory, EventSeverity, BlockType } from '../types';
 import { WORLD_SIZE } from '../constants';
 import { GAME_CONFIG } from '../gameConfig';
 import { Logger } from './LoggerService';
@@ -31,6 +31,14 @@ const getEntitySeed = (id: string): number => {
     return Math.abs(hash);
 };
 
+export const snapToGrid = (position: Vector2): Vector2 => {
+    const size = GAME_CONFIG.STRUCTURES.GRID_SIZE;
+    return {
+        x: Math.round(position.x / size) * size,
+        y: Math.round(position.y / size) * size
+    };
+};
+
 export const generateRandomPosition = (center: Vector2, radius: number = 200): Vector2 => {
   const angle = Math.random() * 2 * Math.PI;
   const r = Math.sqrt(Math.random()) * radius;
@@ -38,6 +46,41 @@ export const generateRandomPosition = (center: Vector2, radius: number = 200): V
     x: Math.max(0, Math.min(WORLD_SIZE, center.x + r * Math.cos(angle))),
     y: Math.max(0, Math.min(WORLD_SIZE, center.y + r * Math.sin(angle))),
   };
+};
+
+export const createWalletEntity = (): GameEntity => {
+    return {
+        id: 'CORE-WALLET-001', // Singleton ID
+        type: EntityType.WALLET,
+        position: { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 },
+        createdAt: Date.now()
+    };
+};
+
+export const createBlockEntity = (type: BlockType, position: Vector2): GameEntity => {
+    // Snap position to grid immediately upon creation
+    const snappedPos = snapToGrid(position);
+    
+    const entity = {
+        id: generateUUID(),
+        type: EntityType.BLOCK,
+        position: snappedPos,
+        blockAttributes: {
+            type,
+            durability: type === BlockType.FIREWALL ? GAME_CONFIG.STRUCTURES.DURABILITY.FIREWALL : GAME_CONFIG.STRUCTURES.DURABILITY.ENCRYPTION,
+            variant: Math.floor(Math.random() * 3) // 0-2 for visual variations
+        },
+        createdAt: Date.now()
+    };
+
+    Logger.log(
+        EventType.BLOCK_PLACED,
+        EventCategory.CONSTRUCTION,
+        EventSeverity.INFO,
+        { type, position: snappedPos }
+    );
+
+    return entity;
 };
 
 export const createPersonJSON = (gender: Gender, customName?: string): EntityAttributes => {
@@ -66,11 +109,9 @@ export const createPersonEntity = (attributes: EntityAttributes, position: Vecto
   const colorPalette = attributes.sexo === Gender.MALE ? MALE_YELLOWS.join(',') : FEMALE_YELLOWS.join(',');
   const seedPrefix = attributes.sexo === Gender.MALE ? "mech-" : "bio-";
   
-  // Using 'bottts' for Bio-bots style
-  // We pass 'colors' to force the yellow theme
   const avatarSeed = `${seedPrefix}${attributes.nombre}-${Math.random()}`;
   
-  const avatarUrl = `https://api.dicebear.com/9.x/bottts/svg?seed=${avatarSeed}&colors=${colorPalette}&backgroundColor=transparent`;
+  const avatarUrl = `https://api.dicebear.com/9.x/bottts/svg?seed=${avatarSeed}&baseColor=${colorPalette}&backgroundColor=transparent`;
 
   const entity = {
     id: generateUUID(),
@@ -196,8 +237,7 @@ export const processBioBot = (
 
     let newState = attr.estado;
     let newPos = { ...entity.position };
-    const prevEnergia = attr.energia;
-
+    
     // --- ENERGY DECAY ---
     let decay = GAME_CONFIG.BIOBOT.ENERGY_DECAY_IDLE;
     if (newState === 'trabajando') decay = GAME_CONFIG.BIOBOT.ENERGY_DECAY_WORK;
@@ -338,6 +378,12 @@ export const updateWorldState = (
     const finalEntities: GameEntity[] = [];
 
     nextEntities.forEach(entity => {
+        // --- IMMUTABLE OBJECTS ---
+        if (entity.type === EntityType.WALLET || entity.type === EntityType.BLOCK) {
+            finalEntities.push(entity);
+            return;
+        }
+
         if (entity.type === EntityType.LAND) {
             const shouldRemove = processLandDecay(entity, now);
             if (!shouldRemove) {

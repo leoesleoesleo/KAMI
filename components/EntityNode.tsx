@@ -1,12 +1,14 @@
+
 import React, { useEffect, useState } from 'react';
-import { GameEntity, EntityType } from '../types';
-import { Server } from 'lucide-react';
+import { GameEntity, EntityType, BlockType } from '../types';
+import { Server, Wallet, Cpu, Shield, Lock, Box } from 'lucide-react';
 import { GAME_CONFIG } from '../gameConfig';
 
 interface EntityNodeProps {
   entity: GameEntity;
   onClick: (entity: GameEntity) => void;
   onMouseDown?: (e: React.MouseEvent | React.TouchEvent, entity: GameEntity) => void;
+  walletStats?: { energy: number; crypto: number }; 
 }
 
 const EMOTES = ['😉', '😄', '😍', '😮', '🤨', '❤️', '🎵', '🤔', '✍️', '💬', '💤'];
@@ -18,7 +20,7 @@ const SEQ_CRITICAL = 3000;
 const SEQ_EXPLOSION = 4500;
 const SEQ_COMPLETE = 5000;
 
-export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouseDown }) => {
+export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouseDown, walletStats }) => {
   const isPerson = entity.type === EntityType.PERSON;
   
   const [activeEmote, setActiveEmote] = useState<string | null>(null);
@@ -70,6 +72,104 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
       return 'hue-rotate(-130deg) saturate(2)'; 
   };
 
+  // --- BLOCK RENDER (STRUCTURES) ---
+  if (entity.type === EntityType.BLOCK) {
+      const type = entity.blockAttributes?.type;
+      const size = GAME_CONFIG.STRUCTURES.GRID_SIZE;
+
+      if (type === BlockType.FIREWALL) {
+          return (
+            <div 
+                className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10 cursor-move group"
+                style={{ left: entity.position.x, top: entity.position.y, width: size, height: size }}
+                onMouseDown={(e) => onMouseDown && onMouseDown(e, entity)}
+                onTouchStart={(e) => onMouseDown && onMouseDown(e, entity)}
+                onClick={(e) => { e.stopPropagation(); onClick(entity); }}
+            >
+                <div className="w-full h-full bg-gradient-to-br from-gray-300 via-gray-400 to-gray-500 rounded-sm border-2 border-gray-600 shadow-md flex items-center justify-center relative overflow-hidden">
+                    {/* Metallic Texture */}
+                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/brushed-alum.png')] opacity-50" />
+                    <div className="absolute inset-0 border border-white/20" />
+                    <Shield size={20} className="text-gray-800 relative z-10 drop-shadow-sm" />
+                </div>
+            </div>
+          );
+      } else if (type === BlockType.ENCRYPTION) {
+          return (
+             <div 
+                className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10 cursor-move group"
+                style={{ left: entity.position.x, top: entity.position.y, width: size, height: size }}
+                onMouseDown={(e) => onMouseDown && onMouseDown(e, entity)}
+                onTouchStart={(e) => onMouseDown && onMouseDown(e, entity)}
+                onClick={(e) => { e.stopPropagation(); onClick(entity); }}
+            >
+                <div className="w-full h-full bg-[#5d4037] rounded-sm border-2 border-[#3e2723] shadow-md flex items-center justify-center relative overflow-hidden">
+                    {/* Tech-Wood Texture */}
+                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-30" />
+                    <div className="absolute inset-0 border border-yellow-600/20" />
+                    {/* Digital Circuit Overlay */}
+                    <div className="absolute inset-0 opacity-20 bg-[linear-gradient(45deg,transparent_25%,rgba(0,255,0,0.2)_50%,transparent_75%)] bg-[size:10px_10px]" />
+                    <Lock size={18} className="text-yellow-500 relative z-10 drop-shadow-md" />
+                </div>
+            </div>
+          );
+      }
+      return null;
+  }
+
+  // --- WALLET RENDER ---
+  if (entity.type === EntityType.WALLET) {
+      const energy = walletStats?.energy || 0;
+      const crypto = walletStats?.crypto || 0;
+      const totalFunds = energy + crypto;
+
+      let styleClass = "border-tech-cyan shadow-[0_0_30px_rgba(6,182,212,0.4)]";
+      let pulseClass = "";
+      let ringClass = "border-tech-cyan/30";
+
+      if (totalFunds < 100) {
+          // Low Funds: Red/Amber
+          styleClass = "border-alert-red shadow-[0_0_20px_rgba(239,68,68,0.3)] opacity-80";
+          pulseClass = "animate-pulse-slow";
+          ringClass = "border-alert-red/30";
+      } else if (totalFunds > 500) {
+          // High Funds: Neon Green/Bright
+          styleClass = "border-neon-green shadow-[0_0_50px_rgba(34,197,94,0.6)]";
+          pulseClass = "animate-pulse";
+          ringClass = "border-neon-green/50";
+      }
+
+      return (
+        <div 
+            className="absolute transform -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
+            style={{ left: entity.position.x, top: entity.position.y }}
+            onClick={(e) => { e.stopPropagation(); onClick(entity); }}
+        >
+            {/* Spinning Outer Ring */}
+            <div className={`absolute -inset-8 rounded-full border-2 border-dashed animate-spin-slow ${ringClass}`} />
+            <div className={`absolute -inset-4 rounded-full border border-dotted animate-spin-reverse ${ringClass}`} />
+
+            {/* Core Container - RESIZED SMALLER */}
+            <div className={`relative w-16 h-16 md:w-20 md:h-20 bg-black/80 backdrop-blur-xl rounded-full border-2 flex items-center justify-center transition-all duration-500 hover:scale-105 ${styleClass} ${pulseClass}`}>
+                
+                {/* Tech Core Detail */}
+                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] opacity-20 rounded-full" />
+                
+                <div className="relative flex flex-col items-center justify-center text-white">
+                    <div className="relative">
+                        <Wallet className="w-6 h-6 md:w-8 md:h-8 text-white drop-shadow-lg relative z-10" />
+                        <Cpu className="absolute -top-1 -right-1 w-3 h-3 text-tech-cyan animate-pulse z-0 opacity-80" />
+                    </div>
+                    <div className="mt-1 text-[8px] md:text-[10px] font-mono font-bold tracking-widest text-tech-cyan">CORE</div>
+                </div>
+
+                {/* Status Indicator Dot */}
+                <div className={`absolute top-1 right-2 w-2 h-2 rounded-full ${totalFunds < 100 ? 'bg-red-500' : 'bg-neon-green'} animate-ping`} />
+            </div>
+        </div>
+      );
+  }
+
   if (isPerson) {
     if (isNewborn && birthPhase !== 'COMPLETE') {
         return (
@@ -118,6 +218,7 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
     }
 
     const isEating = entity.attributes?.estado === 'alimentandose';
+    const isWorking = entity.attributes?.estado === 'trabajando';
     const isDead = entity.attributes?.estado === 'muerto';
     const energy = entity.attributes?.energia || 100;
 
@@ -133,7 +234,7 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
           <div className="absolute top-10 left-1/2 -translate-x-1/2 w-10 h-3 bg-black/40 blur-sm rounded-full scale-y-50" />
           
           <div 
-            className="w-14 h-14 rounded-full shadow-[0_4px_10px_rgba(6,182,212,0.3)] bg-transparent overflow-visible transition-all duration-1000"
+            className="w-14 h-14 rounded-full shadow-[0_4px_10px_rgba(6,182,212,0.3)] bg-transparent overflow-visible transition-all duration-1000 relative z-10"
             style={{ filter: getEnergyFilter(energy, isDead) }}
           >
             <img 
@@ -149,14 +250,33 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
             </div>
           )}
 
-          {entity.attributes?.estado === 'trabajando' && (
-            <div className="absolute -top-2 -left-2 bg-orange-500 text-white p-1 rounded-full text-[8px] animate-bounce shadow-sm border border-white">
-              Work
+          {/* NEW VISUAL EFFECT FOR WORKING (Electric Thruster) */}
+          {isWorking && !isDead && (
+            <div className="absolute top-[80%] left-1/2 -translate-x-1/2 z-0 pointer-events-none">
+                {/* Electric Propulsion Tail */}
+                <div className="relative w-8 h-12 flex justify-center">
+                    {/* Core Glow */}
+                    <div className="absolute top-0 w-2 h-4 bg-white rounded-full blur-[2px] animate-pulse" />
+                    {/* Outer Blue Glow */}
+                    <div className="absolute top-0 w-4 h-8 bg-tech-cyan/60 blur-md rounded-full" />
+                    {/* Electric Stream SVG */}
+                    <svg 
+                        viewBox="0 0 24 24" 
+                        className="w-full h-full text-tech-cyan animate-thruster-burn drop-shadow-[0_0_5px_rgba(6,182,212,0.8)]"
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                    >
+                        <path d="M12 2L10 8L14 12L10 16L12 22" />
+                    </svg>
+                </div>
             </div>
           )}
           
           {isDead && (
-             <div className="absolute -top-6 -left-4 bg-pink-900/90 text-pink-200 px-2 py-0.5 rounded-full text-[10px] font-bold border border-pink-500 shadow-lg whitespace-nowrap animate-pulse">
+             <div className="absolute -top-6 -left-4 bg-pink-900/90 text-pink-200 px-2 py-0.5 rounded-full text-[10px] font-bold border border-pink-500 shadow-lg whitespace-nowrap animate-pulse z-30">
               💀 Muriendo
             </div>
           )}

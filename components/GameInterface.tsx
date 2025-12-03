@@ -1,6 +1,7 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { PlayerState, GameEntity, Gender, INITIAL_POINTS, ACTION_COST, EntityType } from '../types';
-import { Bot, Database, Zap, Pickaxe, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle, HardDrive, LogOut, RotateCcw } from 'lucide-react';
+import { PlayerState, GameEntity, Gender, INITIAL_POINTS, ACTION_COST, EntityType, BlockType } from '../types';
+import { Bot, Database, Zap, Pickaxe, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle, HardDrive, LogOut, RotateCcw, HeartPulse, ArrowRightLeft, Wallet, Hammer, Shield, Lock, Box, ChevronUp } from 'lucide-react';
 import { createPersonJSON } from '../services/gameService';
 import { GAME_CONFIG } from '../gameConfig';
 import { LiveConsole } from './LiveConsole';
@@ -13,8 +14,10 @@ interface GameInterfaceProps {
   selectedEntity: GameEntity | null;
   onCloseSelection: () => void;
   wastedManaTrigger: number;
+  targetLostTrigger?: number; // New prop for auto-cancellation feedback
   isPlacingLand?: boolean;
   isPlacingPerson?: boolean;
+  isTargetingRecharge?: boolean; // New prop
   onBuyMana: (amount: number) => void;
   globalStats: {
       globalScore: number;
@@ -22,6 +25,9 @@ interface GameInterfaceProps {
   };
   onExit: () => void;
   onRestart: () => void;
+  blocksToPlace?: number; // New prop for Build Mode
+  level: number; // New Prop
+  showLevelBanner: string | null; // New Prop for Level Up animation
 }
 
 interface ChatMessage {
@@ -36,12 +42,17 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     selectedEntity, 
     onCloseSelection, 
     wastedManaTrigger,
+    targetLostTrigger,
     isPlacingLand,
     isPlacingPerson,
+    isTargetingRecharge,
     onBuyMana,
     globalStats,
     onExit,
-    onRestart
+    onRestart,
+    blocksToPlace,
+    level,
+    showLevelBanner
 }) => {
   const [isCreationModalOpen, setModalOpen] = useState(false);
   const [creationGender, setCreationGender] = useState<Gender>(Gender.MALE);
@@ -52,7 +63,15 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const [showWastedToast, setShowWastedToast] = useState(false);
   const [showSuccessMana, setShowSuccessMana] = useState(false);
   const [showKillToast, setShowKillToast] = useState(false);
-  const [showNoBotsToast, setShowNoBotsToast] = useState(false); // NEW TOAST
+  const [showNoBotsToast, setShowNoBotsToast] = useState(false); 
+  const [showReviveToast, setShowReviveToast] = useState(false);
+  const [showExchangeToast, setShowExchangeToast] = useState(false);
+  const [showTargetLostToast, setShowTargetLostToast] = useState(false);
+
+  // Tools/Build Modal
+  const [isToolsModalOpen, setToolsModalOpen] = useState(false);
+  const [selectedBlockType, setSelectedBlockType] = useState<BlockType | null>(null);
+  const [blockQuantity, setBlockQuantity] = useState(4); // Default 4 for a square
 
   // Player Profile Modal
   const [isPlayerProfileOpen, setPlayerProfileOpen] = useState(false);
@@ -81,6 +100,14 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         setTimeout(() => setShowWastedToast(false), 3000);
     }
   }, [wastedManaTrigger]);
+
+  // Handle Target Lost Trigger
+  useEffect(() => {
+      if (targetLostTrigger && targetLostTrigger > 0) {
+          setShowTargetLostToast(true);
+          setTimeout(() => setShowTargetLostToast(false), 3000);
+      }
+  }, [targetLostTrigger]);
 
   useEffect(() => {
       if (selectedEntity?.attributes?.workEndTime) {
@@ -131,16 +158,47 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       checkManaAndExecute(() => onAction('CREATE_WORK'));
   };
 
+  const handleBuyBlocks = () => {
+      if (!selectedBlockType) return;
+      
+      const price = selectedBlockType === BlockType.FIREWALL 
+          ? GAME_CONFIG.STRUCTURES.PRICES.FIREWALL 
+          : GAME_CONFIG.STRUCTURES.PRICES.ENCRYPTION;
+      
+      const totalCost = price * blockQuantity;
+      
+      const availableCrypto = Math.max(0, globalStats.globalScore - (player.stats.cryptoSpent || 0));
+
+      if (totalCost > availableCrypto) {
+          alert("Fondos insuficientes de Criptomonedas");
+          return;
+      }
+
+      onAction('BUY_STRUCTURE', { type: selectedBlockType, quantity: blockQuantity, totalCost });
+      setToolsModalOpen(false);
+  };
+
   const handleRedeemCode = () => {
       if (redeemCode === '1866') {
           onBuyMana(100);
           setRedeemCode('');
-          setPlayerProfileOpen(false);
+          setPlayerProfileOpen(false); // Close modal on success for clean UI
           setShowSuccessMana(true);
           setTimeout(() => setShowSuccessMana(false), 3000);
       } else {
           alert("Código de acceso denegado");
       }
+  };
+
+  const handleExchangeCrypto = (amount: number) => {
+      // Execute Exchange
+      onAction('EXCHANGE_CRYPTO', { amount });
+      
+      // Feedback
+      setShowExchangeToast(true);
+      setTimeout(() => setShowExchangeToast(false), 3000);
+      
+      // Do NOT close the modal, allowing user to see updated stats
   };
 
   const openChat = (e: React.MouseEvent) => {
@@ -196,8 +254,27 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         onAction('KILL_ENTITY', selectedEntity.id);
         setShowKillToast(true);
         setTimeout(() => setShowKillToast(false), 3000);
-        onCloseSelection(); 
+        onCloseSelection(); // Close modal immediately per request
     }
+  };
+  
+  const handleRevive = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      
+      const REVIVE_COST = 10;
+      if (player.points < REVIVE_COST) {
+          setShowManaToast(true);
+          setTimeout(() => setShowManaToast(false), 3000);
+          return;
+      }
+      
+      if (selectedEntity && selectedEntity.attributes?.estado === 'muerto') {
+          onAction('REVIVE_ENTITY', selectedEntity.id);
+          setShowReviveToast(true);
+          setTimeout(() => setShowReviveToast(false), 3000);
+          onCloseSelection();
+      }
   };
 
   const closeChat = (e: React.MouseEvent) => {
@@ -207,10 +284,38 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 
   // Helper to count active bots for profile
   const activeBiobotsCount = entities.filter(e => e.type === EntityType.PERSON && e.attributes?.estado !== 'muerto').length;
+  
+  // Calculate Crypto Stats (Liquid Assets)
+  const availableCrypto = Math.max(0, globalStats.globalScore - (player.stats.cryptoSpent || 0));
+
+  // Calculate Exchange Options (60%, 30%, 10%)
+  // 10 Crypto = 1 Energy. We round down to nearest 10 for clean exchange.
+  const calculateOption = (percentage: number) => {
+      const rawAmount = availableCrypto * percentage;
+      const roundedAmount = Math.floor(rawAmount / 10) * 10;
+      return roundedAmount;
+  };
+
+  const optionHigh = calculateOption(0.6); // 60%
+  const optionMid = calculateOption(0.3);  // 30%
+  const optionLow = calculateOption(0.1);  // 10%
 
   return (
     <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 md:p-6 z-20 font-sans">
       
+      {/* LEVEL UP BANNER ANIMATION */}
+      {showLevelBanner && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
+              <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-[fadeIn_0.5s_ease-out]" />
+              <div className="relative text-center animate-[popIn_0.5s_cubic-bezier(0.175,0.885,0.32,1.275)]">
+                  <h1 className="text-6xl md:text-8xl font-black font-tech text-transparent bg-clip-text bg-gradient-to-r from-tech-cyan via-white to-tech-purple drop-shadow-[0_0_50px_rgba(6,182,212,0.8)] tracking-tighter">
+                      {showLevelBanner}
+                  </h1>
+                  <div className="h-1 w-full bg-neon-green mt-4 shadow-[0_0_20px_#10b981]" />
+              </div>
+          </div>
+      )}
+
       {/* Placement Mode Toast - Land */}
       {isPlacingLand && (
         <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-neon-green/90 backdrop-blur text-black px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-[0_0_20px_rgba(16,185,129,0.5)] animate-pulse flex items-center gap-3 z-[60] pointer-events-auto border border-neon-green w-max max-w-[90vw] whitespace-normal text-center">
@@ -224,6 +329,30 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-tech-cyan/90 backdrop-blur text-black px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-[0_0_20px_rgba(6,182,212,0.5)] animate-pulse flex items-center gap-3 z-[60] pointer-events-auto border border-tech-cyan w-max max-w-[90vw] whitespace-normal text-center">
             <Fingerprint size={20} className="shrink-0" />
             <span className="font-mono font-bold text-xs md:text-sm">GÉNESIS: CONFIRMAR UBICACIÓN</span>
+        </div>
+      )}
+
+       {/* Placement Mode Toast - Blocks */}
+       {blocksToPlace !== undefined && blocksToPlace > 0 && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-gray-600/90 backdrop-blur text-white px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-[0_0_20px_rgba(255,255,255,0.3)] animate-pulse flex items-center gap-3 z-[60] pointer-events-auto border border-gray-400 w-max max-w-[90vw] whitespace-normal text-center">
+            <Box size={20} className="shrink-0" />
+            <span className="font-mono font-bold text-xs md:text-sm">MODO CONSTRUCCIÓN: {blocksToPlace} RESTANTES</span>
+        </div>
+      )}
+
+      {/* Recharge Mode Toast */}
+      {isTargetingRecharge && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-blue-600/90 backdrop-blur text-white px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-[0_0_20px_rgba(59,130,246,0.5)] animate-pulse flex items-center gap-3 z-[60] pointer-events-auto border border-blue-400 w-max max-w-[90vw] whitespace-normal text-center">
+            <Zap size={20} className="shrink-0" />
+            <span className="font-mono font-bold text-xs md:text-sm">[ MODO RECARGA: SELECCIONAR NODO ]</span>
+        </div>
+      )}
+
+      {/* Target Lost Toast */}
+      {showTargetLostToast && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-red-600/90 backdrop-blur text-white px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-[0_0_20px_rgba(220,38,38,0.5)] animate-bounce flex items-center gap-3 z-[60] pointer-events-auto border border-red-400 w-max max-w-[90vw] whitespace-normal text-center">
+            <AlertTriangle size={20} className="shrink-0" />
+            <span className="font-mono font-bold text-xs md:text-sm">OBJETIVO PERDIDO: OPERACIÓN CANCELADA</span>
         </div>
       )}
 
@@ -250,6 +379,14 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
             <span className="font-mono font-bold text-xs md:text-sm">RECARGA EXITOSA +100</span>
         </div>
       )}
+      
+      {/* Toast Notification for Success Crypto Exchange */}
+      {showExchangeToast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-tech-purple/20 backdrop-blur-md text-tech-purple px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto border border-tech-purple w-max max-w-[90vw] whitespace-normal text-center">
+            <ArrowRightLeft size={18} className="shrink-0" />
+            <span className="font-mono font-bold text-xs md:text-sm">CONVERSIÓN COMPLETADA</span>
+        </div>
+      )}
 
       {/* Toast Notification for Wasted Mana */}
       {showWastedToast && (
@@ -264,6 +401,14 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-gray-900/90 text-alert-red px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto border border-alert-red w-max max-w-[90vw] whitespace-normal text-center">
             <Skull size={18} className="shrink-0" />
             <span className="font-mono font-bold text-xs md:text-sm">TERMINACIÓN EJECUTADA</span>
+        </div>
+      )}
+      
+      {/* Toast Notification for Revive */}
+      {showReviveToast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-neon-green/90 text-black px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto border border-neon-green w-max max-w-[90vw] whitespace-normal text-center">
+            <HeartPulse size={18} className="shrink-0" />
+            <span className="font-mono font-bold text-xs md:text-sm">SISTEMA REINICIADO: UNIDAD ACTIVA</span>
         </div>
       )}
 
@@ -288,15 +433,26 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
             </div>
         </div>
 
-        {/* Right: Global Stats Group */}
+        {/* Right: Global Stats Group + LEVEL INDICATOR */}
         <div className="flex gap-2 md:gap-3 w-full md:w-auto justify-center md:justify-end">
+             
+             {/* LEVEL INDICATOR */}
+             <div className="bg-panel-dark backdrop-blur-md rounded-xl shadow-lg p-2 md:p-3 flex flex-col items-center justify-center flex-1 md:flex-none md:min-w-[80px] border border-white/20 h-14 md:h-16 group hover:border-white/40 transition-colors">
+                 <span className="text-[9px] md:text-[10px] text-gray-400 font-mono font-bold uppercase tracking-wider flex items-center gap-1">
+                     <ChevronUp size={10} /> PROGRESO
+                 </span>
+                 <span className="text-base md:text-xl font-tech font-bold text-white leading-tight drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">
+                     NIVEL {level}
+                 </span>
+            </div>
+
              {/* Global Crypto Stat */}
              <div className="bg-panel-dark backdrop-blur-md rounded-xl shadow-lg p-2 md:p-3 flex flex-col items-center justify-center flex-1 md:flex-none md:min-w-[120px] border border-tech-purple/30 h-14 md:h-16 group hover:border-tech-purple/60 transition-colors">
                  <span className="text-[9px] md:text-[10px] text-tech-purple font-mono font-bold uppercase tracking-wider flex items-center gap-1">
                      <Trophy size={10} /> CRIPTOMONEDAS
                  </span>
                  <span className="text-base md:text-xl font-tech font-bold text-white leading-tight drop-shadow-[0_0_5px_rgba(139,92,246,0.5)]">
-                     {globalStats.globalScore.toLocaleString()}
+                     {availableCrypto.toLocaleString()}
                  </span>
             </div>
 
@@ -312,10 +468,91 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         </div>
       </div>
 
+      {/* Tools / Build Modal */}
+      {isToolsModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto p-4">
+              <div className="bg-slate-900 rounded-xl p-6 w-full max-w-md shadow-2xl border border-gray-600">
+                  <div className="flex justify-between items-center mb-6">
+                      <h3 className="font-tech text-xl font-bold text-white flex items-center gap-2">
+                          <Hammer size={20} className="text-gray-400" /> ALMACÉN DE RECURSOS
+                      </h3>
+                      <button onClick={() => setToolsModalOpen(false)}><X size={20} className="text-gray-500 hover:text-white" /></button>
+                  </div>
+
+                  <div className="mb-4">
+                      <h4 className="text-gray-400 text-xs font-mono font-bold mb-2 uppercase">Estructura & Defensa</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                          {/* Firewall Block */}
+                          <button 
+                            onClick={() => setSelectedBlockType(BlockType.FIREWALL)}
+                            className={`p-3 rounded border flex flex-col items-center gap-2 transition-all ${selectedBlockType === BlockType.FIREWALL ? 'bg-gray-700 border-white ring-2 ring-white/20' : 'bg-slate-800 border-slate-700 hover:bg-slate-700'}`}
+                          >
+                              <Shield size={24} className="text-gray-300" />
+                              <span className="text-sm font-bold text-white">Bloque Firewall</span>
+                              <span className="text-xs text-tech-purple font-mono">{GAME_CONFIG.STRUCTURES.PRICES.FIREWALL} Cripto</span>
+                          </button>
+
+                          {/* Encryption Block */}
+                          <button 
+                            onClick={() => setSelectedBlockType(BlockType.ENCRYPTION)}
+                            className={`p-3 rounded border flex flex-col items-center gap-2 transition-all ${selectedBlockType === BlockType.ENCRYPTION ? 'bg-yellow-900/30 border-yellow-600 ring-2 ring-yellow-500/20' : 'bg-slate-800 border-slate-700 hover:bg-slate-700'}`}
+                          >
+                              <Lock size={24} className="text-yellow-500" />
+                              <span className="text-sm font-bold text-white">Bloque Cifrado</span>
+                              <span className="text-xs text-tech-purple font-mono">{GAME_CONFIG.STRUCTURES.PRICES.ENCRYPTION} Cripto</span>
+                          </button>
+                      </div>
+                  </div>
+
+                  <div className="mb-6 opacity-50 cursor-not-allowed">
+                      <h4 className="text-gray-500 text-xs font-mono font-bold mb-2 uppercase">Equipamiento (Próximamente)</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                          <div className="p-3 bg-slate-900 border border-slate-800 rounded flex flex-col items-center gap-2">
+                              <Box size={24} className="text-gray-700" />
+                              <span className="text-xs text-gray-600">Módulo IA</span>
+                          </div>
+                          <div className="p-3 bg-slate-900 border border-slate-800 rounded flex flex-col items-center gap-2">
+                              <Box size={24} className="text-gray-700" />
+                              <span className="text-xs text-gray-600">Turbo Cargador</span>
+                          </div>
+                      </div>
+                  </div>
+                  
+                  {/* Quantity & Buy */}
+                  {selectedBlockType && (
+                      <div className="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                          <div className="flex justify-between items-center mb-4">
+                              <span className="text-sm text-gray-400">Cantidad:</span>
+                              <div className="flex items-center gap-3">
+                                  <button onClick={() => setBlockQuantity(Math.max(1, blockQuantity - 1))} className="w-8 h-8 rounded bg-slate-700 hover:bg-slate-600 text-white font-bold">-</button>
+                                  <span className="text-white font-mono font-bold w-6 text-center">{blockQuantity}</span>
+                                  <button onClick={() => setBlockQuantity(blockQuantity + 1)} className="w-8 h-8 rounded bg-slate-700 hover:bg-slate-600 text-white font-bold">+</button>
+                              </div>
+                          </div>
+                          
+                          <div className="flex justify-between items-center pt-2 border-t border-slate-700">
+                              <span className="text-sm text-gray-400">Total:</span>
+                              <span className="font-mono font-bold text-tech-purple text-lg">
+                                  {(selectedBlockType === BlockType.FIREWALL ? GAME_CONFIG.STRUCTURES.PRICES.FIREWALL : GAME_CONFIG.STRUCTURES.PRICES.ENCRYPTION) * blockQuantity} Cripto
+                              </span>
+                          </div>
+                          
+                          <button 
+                            onClick={handleBuyBlocks}
+                            className="w-full mt-4 bg-tech-cyan text-black font-bold py-3 rounded hover:bg-cyan-400 transition-colors shadow-lg"
+                          >
+                              ADQUIRIR Y CONSTRUIR
+                          </button>
+                      </div>
+                  )}
+              </div>
+          </div>
+      )}
+
       {/* Player Profile Modal */}
       {isPlayerProfileOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto p-4">
-              <div className="bg-slate-900 rounded-2xl p-6 md:p-8 w-full max-w-[400px] shadow-[0_0_40px_rgba(6,182,212,0.15)] border border-tech-cyan/50 relative overflow-y-auto max-h-[90vh]">
+              <div className="bg-slate-900 rounded-2xl p-6 md:p-8 w-full max-w-[420px] shadow-[0_0_40px_rgba(6,182,212,0.15)] border border-tech-cyan/50 relative overflow-y-auto max-h-[90vh]">
                   <button onClick={() => setPlayerProfileOpen(false)} className="absolute top-4 right-4 text-gray-500 hover:text-alert-red transition-colors">
                       <X size={24} />
                   </button>
@@ -364,10 +601,61 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                           <span className="font-bold text-lg md:text-xl text-tech-cyan">{player.points}</span>
                       </div>
                       
+                      {/* Crypto Exchange Section */}
+                      <div className="pt-4 border-t border-slate-700">
+                          <h4 className="font-tech font-bold text-gray-300 mb-3 flex items-center gap-2 text-sm md:text-base">
+                             <Wallet size={18} className="text-tech-purple" /> Bolsa de Valores (10:1)
+                          </h4>
+                          <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700 flex items-center justify-between mb-3">
+                              <span className="text-xs text-gray-400 uppercase tracking-wide">Saldo Líquido</span>
+                              <span className="font-mono font-bold text-tech-purple">{availableCrypto.toLocaleString()} CRIPTO</span>
+                          </div>
+                          
+                          {/* 3-Option Exchange Grid */}
+                          <div className="grid grid-cols-3 gap-2">
+                              {/* Option 1: 60% */}
+                              <button 
+                                  onClick={() => handleExchangeCrypto(optionHigh)}
+                                  disabled={optionHigh <= 0}
+                                  className="flex flex-col items-center justify-center p-2 rounded-lg border border-tech-purple/50 bg-tech-purple/10 hover:bg-tech-purple/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed group"
+                              >
+                                  <span className="text-xs text-gray-400 mb-1">60%</span>
+                                  <span className="text-sm font-bold text-white mb-1">{optionHigh}</span>
+                                  <span className="text-[10px] text-neon-green group-hover:underline">+{optionHigh / 10}⚡</span>
+                              </button>
+
+                              {/* Option 2: 30% */}
+                              <button 
+                                  onClick={() => handleExchangeCrypto(optionMid)}
+                                  disabled={optionMid <= 0}
+                                  className="flex flex-col items-center justify-center p-2 rounded-lg border border-tech-purple/50 bg-tech-purple/10 hover:bg-tech-purple/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed group"
+                              >
+                                  <span className="text-xs text-gray-400 mb-1">30%</span>
+                                  <span className="text-sm font-bold text-white mb-1">{optionMid}</span>
+                                  <span className="text-[10px] text-neon-green group-hover:underline">+{optionMid / 10}⚡</span>
+                              </button>
+
+                              {/* Option 3: 10% */}
+                              <button 
+                                  onClick={() => handleExchangeCrypto(optionLow)}
+                                  disabled={optionLow <= 0}
+                                  className="flex flex-col items-center justify-center p-2 rounded-lg border border-tech-purple/50 bg-tech-purple/10 hover:bg-tech-purple/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed group"
+                              >
+                                  <span className="text-xs text-gray-400 mb-1">10%</span>
+                                  <span className="text-sm font-bold text-white mb-1">{optionLow}</span>
+                                  <span className="text-[10px] text-neon-green group-hover:underline">+{optionLow / 10}⚡</span>
+                              </button>
+                          </div>
+                          
+                          {availableCrypto < 10 && (
+                             <div className="text-center text-[10px] text-gray-500 mt-2 italic">Mínimo requerido: 10 Cripto</div>
+                          )}
+                      </div>
+
                       {/* Shop Section */}
                       <div className="pt-4 border-t border-slate-700">
                           <h4 className="font-tech font-bold text-gray-300 mb-3 flex items-center gap-2 text-sm md:text-base">
-                             <ShoppingBag size={18} className="text-tech-purple" /> Inyección de Recursos
+                             <ShoppingBag size={18} className="text-neon-green" /> Inyección Manual
                           </h4>
                           <div className="flex gap-2">
                               <input 
@@ -379,7 +667,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                               />
                               <button 
                                 onClick={handleRedeemCode}
-                                className="bg-tech-purple/20 border border-tech-purple text-tech-purple px-4 py-2 rounded-lg font-bold text-xs md:text-sm hover:bg-tech-purple hover:text-white transition-all shadow-[0_0_10px_rgba(139,92,246,0.2)]"
+                                className="bg-neon-green/20 border border-neon-green text-neon-green px-4 py-2 rounded-lg font-bold text-xs md:text-sm hover:bg-neon-green hover:text-black transition-all shadow-[0_0_10px_rgba(34,197,94,0.2)]"
                               >
                                   EJECUTAR
                               </button>
@@ -391,77 +679,144 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       )}
 
       {/* Selected Entity Modal (Bottom Left) */}
-      {selectedEntity && selectedEntity.attributes && !isChatOpen && (
+      {selectedEntity && !isChatOpen && (
         <div className="pointer-events-auto absolute left-4 md:left-24 bottom-24 md:bottom-24 w-[calc(100%-2rem)] md:w-80 bg-slate-900/90 backdrop-blur-xl rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.5)] border border-slate-700 p-4 md:p-5 z-40">
             <button onClick={onCloseSelection} className="absolute top-2 right-2 text-gray-500 hover:text-alert-red transition-colors">
                 <X size={18} />
             </button>
-            <div className="flex items-center gap-4 mb-4">
-                <div className={`w-14 h-14 md:w-16 md:h-16 rounded-lg border border-tech-cyan shadow-lg bg-slate-800 overflow-hidden relative ${selectedEntity.attributes.estado === 'muerto' ? 'grayscale opacity-50' : ''}`}>
-                     <img src={selectedEntity.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                     {selectedEntity.attributes.estado !== 'muerto' && (
-                         <div className="absolute bottom-0 left-0 w-full h-1 bg-tech-cyan animate-pulse" />
-                     )}
-                </div>
-                <div>
-                    <h3 className="font-tech font-bold text-lg md:text-xl text-white tracking-wide">{selectedEntity.attributes.nombre}</h3>
-                    <p className="text-[10px] md:text-xs text-tech-cyan font-mono uppercase tracking-widest">{selectedEntity.attributes.sexo} • v.{selectedEntity.attributes.edad}.0</p>
-                </div>
-            </div>
             
-            <div className="space-y-2 text-xs md:text-sm text-gray-300 font-mono mb-4">
-                <div className="flex justify-between border-b border-slate-700 pb-1">
-                    <span className="text-gray-500">Módulo:</span>
-                    <span className="font-semibold text-tech-purple">{selectedEntity.attributes.personalidad}</span>
+            {/* --- WALLET PANEL --- */}
+            {selectedEntity.type === EntityType.WALLET ? (
+                <div className="flex flex-col items-center">
+                    <div className="w-16 h-16 rounded-full border-2 border-tech-cyan bg-slate-800 flex items-center justify-center mb-3 shadow-[0_0_20px_rgba(6,182,212,0.4)] relative">
+                         <div className="absolute inset-0 border border-dashed border-white/30 rounded-full animate-spin-slow" />
+                         <Cpu size={24} className="text-tech-cyan" />
+                    </div>
+                    <h3 className="font-tech font-bold text-xl text-white tracking-widest mb-1">CORE WALLET</h3>
+                    <p className="text-[10px] text-gray-400 font-mono mb-4">SISTEMA FINANCIERO CENTRAL</p>
+                    
+                    <div className="w-full space-y-3">
+                        <div className="bg-slate-800/50 p-3 rounded-lg border border-tech-cyan/30 flex justify-between items-center">
+                            <span className="text-tech-cyan font-mono text-xs font-bold">ENERGÍA</span>
+                            <span className="text-white font-tech text-lg">{player.points}</span>
+                        </div>
+                         <div className="bg-slate-800/50 p-3 rounded-lg border border-tech-purple/30 flex justify-between items-center">
+                            <span className="text-tech-purple font-mono text-xs font-bold">CRIPTOMONEDAS</span>
+                            <span className="text-white font-tech text-lg">{availableCrypto}</span>
+                        </div>
+                    </div>
                 </div>
-                <div className="flex justify-between border-b border-slate-700 pb-1">
-                    <span className="text-gray-500">Batería:</span>
-                    <span className={`font-semibold ${selectedEntity.attributes.energia > 50 ? 'text-neon-green' : 'text-alert-red'}`}>{Math.round(selectedEntity.attributes.energia)}%</span>
-                </div>
-                <div className="flex justify-between border-b border-slate-700 pb-1">
-                    <span className="text-gray-500">Output:</span>
-                    <span className="font-semibold text-tech-cyan flex items-center gap-1">
-                        <BarChart3 size={14} /> {Math.floor(selectedEntity.attributes.individualScore)}
-                    </span>
-                </div>
-                <div className="flex justify-between border-b border-slate-700 pb-1">
-                    <span className="text-gray-500">Estado:</span>
-                    <span className="font-semibold capitalize flex items-center gap-1">
-                        {selectedEntity.attributes.estado === 'muerto' ? (
-                            <span className="text-pink-600 animate-pulse font-bold">FALLO CRÍTICO</span>
-                        ) : (
-                            <span className="text-blue-400">{selectedEntity.attributes.estado}</span>
-                        )}
+            ) : (
+                /* --- STANDARD ENTITY PANEL (Person/Land) --- */
+                <>
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className={`w-14 h-14 md:w-16 md:h-16 rounded-lg border border-tech-cyan shadow-lg bg-slate-800 overflow-hidden relative ${selectedEntity.attributes?.estado === 'muerto' ? 'grayscale opacity-50' : ''}`}>
+                             {selectedEntity.type === EntityType.PERSON ? (
+                                 <img src={selectedEntity.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                             ) : selectedEntity.type === EntityType.BLOCK ? (
+                                <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                                    {selectedEntity.blockAttributes?.type === BlockType.FIREWALL ? <Shield size={32} className="text-gray-400" /> : <Lock size={32} className="text-yellow-600" />}
+                                </div>
+                             ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                                    <HardDrive size={32} className="text-tech-cyan" />
+                                </div>
+                             )}
+                             
+                             {selectedEntity.attributes?.estado !== 'muerto' && (
+                                 <div className="absolute bottom-0 left-0 w-full h-1 bg-tech-cyan animate-pulse" />
+                             )}
+                        </div>
+                        <div>
+                            <h3 className="font-tech font-bold text-lg md:text-xl text-white tracking-wide">
+                                {selectedEntity.type === EntityType.LAND ? 'DATA NODE' : selectedEntity.type === EntityType.BLOCK ? 'STRUCTURE' : selectedEntity.attributes?.nombre}
+                            </h3>
+                            <p className="text-[10px] md:text-xs text-tech-cyan font-mono uppercase tracking-widest">
+                                {selectedEntity.type === EntityType.LAND ? `ID: ${selectedEntity.id.slice(0,6)}` : selectedEntity.type === EntityType.BLOCK ? selectedEntity.blockAttributes?.type : `${selectedEntity.attributes?.sexo} • v.${selectedEntity.attributes?.edad}.0`}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    {selectedEntity.type === EntityType.PERSON && selectedEntity.attributes && (
+                        <div className="space-y-2 text-xs md:text-sm text-gray-300 font-mono mb-4">
+                            <div className="flex justify-between border-b border-slate-700 pb-1">
+                                <span className="text-gray-500">Módulo:</span>
+                                <span className="font-semibold text-tech-purple">{selectedEntity.attributes.personalidad}</span>
+                            </div>
+                            <div className="flex justify-between border-b border-slate-700 pb-1">
+                                <span className="text-gray-500">Batería:</span>
+                                <span className={`font-semibold ${selectedEntity.attributes.energia > 50 ? 'text-neon-green' : 'text-alert-red'}`}>{Math.round(selectedEntity.attributes.energia)}%</span>
+                            </div>
+                            <div className="flex justify-between border-b border-slate-700 pb-1">
+                                <span className="text-gray-500">Output:</span>
+                                <span className="font-semibold text-tech-cyan flex items-center gap-1">
+                                    <BarChart3 size={14} /> {Math.floor(selectedEntity.attributes.individualScore)}
+                                </span>
+                            </div>
+                            <div className="flex justify-between border-b border-slate-700 pb-1">
+                                <span className="text-gray-500">Estado:</span>
+                                <span className="font-semibold capitalize flex items-center gap-1">
+                                    {selectedEntity.attributes.estado === 'muerto' ? (
+                                        <span className="text-pink-600 animate-pulse font-bold">FALLO CRÍTICO</span>
+                                    ) : (
+                                        <span className="text-blue-400">{selectedEntity.attributes.estado}</span>
+                                    )}
 
-                        {selectedEntity.attributes.estado === 'trabajando' && timeLeft !== null && (
-                            <span className="text-orange-400 font-bold ml-1 flex items-center">
-                                <Clock size={12} className="mr-1"/> {timeLeft}s
-                            </span>
-                        )}
-                    </span>
-                </div>
-            </div>
+                                    {selectedEntity.attributes.estado === 'trabajando' && timeLeft !== null && (
+                                        <span className="text-orange-400 font-bold ml-1 flex items-center">
+                                            <Clock size={12} className="mr-1"/> {timeLeft}s
+                                        </span>
+                                    )}
+                                </span>
+                            </div>
+                        </div>
+                    )}
 
-            <div className="flex gap-2">
-                <button 
-                    onClick={openChat}
-                    disabled={selectedEntity.attributes.estado === 'muerto'}
-                    className="flex-1 bg-slate-800 border border-slate-600 text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-tech-cyan/10 hover:border-tech-cyan hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm font-mono"
-                >
-                    <MessageCircle size={16} />
-                    <span>CONSOLA</span>
-                </button>
+                    {selectedEntity.type === EntityType.LAND && selectedEntity.landAttributes && (
+                         <div className="space-y-2 text-xs md:text-sm text-gray-300 font-mono mb-4">
+                            <div className="flex justify-between border-b border-slate-700 pb-1">
+                                <span className="text-gray-500">Recursos:</span>
+                                <span className="font-semibold text-neon-green">{Math.round(selectedEntity.landAttributes.resourceLevel)}%</span>
+                            </div>
+                         </div>
+                    )}
 
-                {GAME_CONFIG.DEATH.ENABLE_MANUAL_KILL && selectedEntity.attributes.estado !== 'muerto' && (
-                    <button 
-                        onClick={handleKill}
-                        className="w-10 bg-alert-red/10 border border-alert-red/50 text-alert-red rounded-lg flex items-center justify-center hover:bg-alert-red hover:text-white transition-all"
-                        title="Terminar Proceso"
-                    >
-                        <Skull size={18} />
-                    </button>
-                )}
-            </div>
+                    {selectedEntity.type === EntityType.PERSON && selectedEntity.attributes && (
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={openChat}
+                                disabled={selectedEntity.attributes.estado === 'muerto'}
+                                className="flex-1 bg-slate-800 border border-slate-600 text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-tech-cyan/10 hover:border-tech-cyan hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm font-mono"
+                            >
+                                <MessageCircle size={16} />
+                                <span>CONSOLA</span>
+                            </button>
+
+                            {GAME_CONFIG.DEATH.ENABLE_MANUAL_KILL && selectedEntity.attributes.estado !== 'muerto' && (
+                                <button 
+                                    onClick={handleKill}
+                                    className="w-10 bg-alert-red/10 border border-alert-red/50 text-alert-red rounded-lg flex items-center justify-center hover:bg-alert-red hover:text-white transition-all"
+                                    title="Terminar Proceso"
+                                >
+                                    <Skull size={18} />
+                                </button>
+                            )}
+                            
+                            {/* REVIVE BUTTON - Only visible when dead */}
+                            {selectedEntity.attributes.estado === 'muerto' && (
+                                <button 
+                                    onClick={handleRevive}
+                                    className="flex-1 bg-neon-green/10 border border-neon-green/50 text-neon-green py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-neon-green hover:text-black transition-all text-xs md:text-sm font-mono animate-pulse"
+                                    title="Reactivar Unidad (-10 Energía)"
+                                >
+                                    <HeartPulse size={16} />
+                                    <span>REVIVIR</span>
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </>
+            )}
         </div>
       )}
 
@@ -518,7 +873,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
             <div className="relative group shrink-0">
                 <button 
                     onClick={() => checkManaAndExecute(() => setModalOpen(true))}
-                    disabled={isPlacingLand || isPlacingPerson}
+                    disabled={isPlacingLand || isPlacingPerson || isTargetingRecharge}
                     className={`w-10 h-10 md:w-11 md:h-11 rounded-lg border flex items-center justify-center transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed ${isPlacingPerson ? 'bg-tech-cyan text-black border-white animate-pulse shadow-[0_0_20px_rgba(6,182,212,0.8)]' : 'bg-slate-800 border-tech-cyan/40 text-tech-cyan hover:bg-tech-cyan hover:text-black hover:shadow-[0_0_15px_rgba(6,182,212,0.4)]'}`}
                     title="Génesis BioBot"
                 >
@@ -530,7 +885,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
             <div className="relative group shrink-0">
                 <button 
                     onClick={() => checkManaAndExecute(() => onAction('CREATE_LAND'))}
-                    disabled={isPlacingPerson}
+                    disabled={isPlacingPerson || isTargetingRecharge}
                     className={`w-10 h-10 md:w-11 md:h-11 rounded-lg border flex items-center justify-center transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed ${isPlacingLand ? 'bg-neon-green text-black border-white animate-pulse shadow-[0_0_20px_rgba(34,197,94,0.8)]' : 'bg-slate-800 border-neon-green/40 text-neon-green hover:bg-neon-green hover:text-black hover:shadow-[0_0_15px_rgba(34,197,94,0.4)]'}`}
                     title="Crear Nodo de Datos"
                 >
@@ -543,7 +898,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                 <button 
                     onClick={() => checkManaAndExecute(() => onAction('CREATE_RAIN'))}
                     disabled={isPlacingLand || isPlacingPerson}
-                    className="w-10 h-10 md:w-11 md:h-11 rounded-lg bg-slate-800 border border-blue-500/40 flex items-center justify-center text-blue-400 hover:bg-blue-500 hover:text-white transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-[0_0_15px_rgba(59,130,246,0.4)]"
+                    className={`w-10 h-10 md:w-11 md:h-11 rounded-lg border flex items-center justify-center transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed ${isTargetingRecharge ? 'bg-blue-500 text-white border-white animate-pulse shadow-[0_0_20px_rgba(59,130,246,0.8)]' : 'bg-slate-800 border-blue-500/40 text-blue-400 hover:bg-blue-500 hover:text-white hover:shadow-[0_0_15px_rgba(59,130,246,0.4)]'}`}
                     title="Carga Energética"
                 >
                     <Zap size={20} />
@@ -554,11 +909,23 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
             <div className="relative group shrink-0">
                 <button 
                     onClick={handleWorkProtocol}
-                    disabled={isPlacingLand || isPlacingPerson}
+                    disabled={isPlacingLand || isPlacingPerson || isTargetingRecharge}
                     className="w-10 h-10 md:w-11 md:h-11 rounded-lg bg-slate-800 border border-orange-500/40 flex items-center justify-center text-orange-500 hover:bg-orange-500 hover:text-white transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-[0_0_15px_rgba(249,115,22,0.4)]"
                     title="Minar Criptomonedas"
                 >
                     <Pickaxe size={20} />
+                </button>
+            </div>
+
+            {/* NEW: Tools / Build Menu */}
+            <div className="relative group shrink-0">
+                <button 
+                    onClick={() => setToolsModalOpen(true)}
+                    disabled={isPlacingLand || isPlacingPerson || isTargetingRecharge}
+                    className="w-10 h-10 md:w-11 md:h-11 rounded-lg bg-slate-800 border border-gray-400 flex items-center justify-center text-gray-300 hover:bg-gray-600 hover:text-white transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Herramientas y Estructuras"
+                >
+                    <Hammer size={20} />
                 </button>
             </div>
 

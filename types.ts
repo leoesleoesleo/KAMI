@@ -2,6 +2,13 @@
 export enum EntityType {
   PERSON = 'PERSON',
   LAND = 'LAND',
+  WALLET = 'WALLET',
+  BLOCK = 'BLOCK', // New Entity Type
+}
+
+export enum BlockType {
+  FIREWALL = 'FIREWALL',
+  ENCRYPTION = 'ENCRYPTION'
 }
 
 export enum Gender {
@@ -17,6 +24,12 @@ export interface Vector2 {
 export interface LandAttributes {
   resourceLevel: number; // 0 - 100
   emptySince?: number; // Timestamp when resource became 0
+}
+
+export interface BlockAttributes {
+    type: BlockType;
+    durability: number;
+    variant?: number; // For visual variety
 }
 
 export interface EntityAttributes {
@@ -43,6 +56,7 @@ export interface GameEntity {
   velocity?: Vector2;
   attributes?: EntityAttributes; // Only for people
   landAttributes?: LandAttributes; // Only for land
+  blockAttributes?: BlockAttributes; // Only for blocks
   avatarUrl?: string;
   createdAt: number;
 }
@@ -51,6 +65,7 @@ export interface PlayerStats {
   entitiesCreated: number;
   manaSpent: number;
   landsCreated: number;
+  cryptoSpent: number; // New field for exchange history
 }
 
 export interface PlayerState {
@@ -65,6 +80,7 @@ export interface GameState {
   isWatering: boolean; 
   entities: GameEntity[];
   player: PlayerState;
+  level: number; // New Level Tracking
   isLogViewerOpen?: boolean; // New state for Log Viewer
 }
 
@@ -80,6 +96,7 @@ export enum EventType {
   LAND_CREATED = 'LAND_CREATED',
   LAND_DECAYED = 'LAND_DECAYED',
   LAND_WATERED = 'LAND_WATERED',
+  BLOCK_PLACED = 'BLOCK_PLACED', // New Event
   USER_ACTION = 'USER_ACTION',
   SYSTEM_ALERT = 'SYSTEM_ALERT'
 }
@@ -88,7 +105,8 @@ export enum EventCategory {
   LIFECYCLE = 'LIFECYCLE',
   ECONOMY = 'ECONOMY',
   SYSTEM = 'SYSTEM',
-  USER = 'USER'
+  USER = 'USER',
+  CONSTRUCTION = 'CONSTRUCTION' // New Category
 }
 
 export enum EventSeverity {

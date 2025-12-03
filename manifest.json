@@ -1,0 +1,21 @@
+{
+  "name": "BioBots: Génesis Evolutiva",
+  "short_name": "BioBots",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#06b6d4",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://api.dicebear.com/9.x/shapes/png?seed=BioBots&backgroundColor=020617&shape=rectangle,line&size=192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://api.dicebear.com/9.x/shapes/png?seed=BioBots&backgroundColor=020617&shape=rectangle,line&size=512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

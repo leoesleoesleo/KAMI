@@ -1,17 +1,25 @@
+
 import React, { useRef, useState } from 'react';
 import { GameEntity, Vector2, EntityType } from '../types';
 import { WORLD_SIZE } from '../constants';
 import { EntityNode } from './EntityNode';
 import { ZoomIn, ZoomOut, Zap } from 'lucide-react';
+import { snapToGrid } from '../services/gameService';
 
 interface WorldCanvasProps {
   entities: GameEntity[];
   onEntityClick: (entity: GameEntity) => void;
-  isWatering: boolean;
+  isWatering: boolean; // Keeping prop for backwards compat, but logic moved to reloadingNodeId
   isPlacingLand: boolean;
   isPlacingPerson?: boolean;
+  isTargetingRecharge?: boolean; // New Prop
+  rechargingNodeId?: string | null; // New Prop
   onLandPlace: (position: Vector2) => void;
   onEntityDrag: (id: string, position: Vector2) => void;
+  onNodeRecharge?: (id: string) => void; // New Handler
+  walletStats?: { energy: number; crypto: number }; // NEW: Stats for Wallet Visuals
+  blocksToPlace?: number;
+  level?: number; // New Level Prop
 }
 
 export const WorldCanvas: React.FC<WorldCanvasProps> = ({ 
@@ -20,8 +28,14 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
     isWatering, 
     isPlacingLand,
     isPlacingPerson,
+    isTargetingRecharge,
+    rechargingNodeId,
     onLandPlace,
-    onEntityDrag
+    onEntityDrag,
+    onNodeRecharge,
+    walletStats,
+    blocksToPlace,
+    level = 1
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -95,7 +109,7 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
   };
 
   const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
-    if (isPlacingLand || isPlacingPerson) return;
+    if (isPlacingLand || isPlacingPerson || isTargetingRecharge || (blocksToPlace && blocksToPlace > 0)) return;
     
     // Check if it's a mouse event and left click (button 0)
     // For touch, there is no 'button' property, so we proceed
@@ -111,7 +125,7 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
   };
 
   const handleEntityMouseDown = (e: React.MouseEvent | React.TouchEvent, entity: GameEntity) => {
-      if ((entity.type === EntityType.LAND || entity.type === EntityType.PERSON) && !isPlacingLand && !isPlacingPerson) {
+      if ((entity.type === EntityType.LAND || entity.type === EntityType.PERSON || entity.type === EntityType.BLOCK) && !isPlacingLand && !isPlacingPerson && !isTargetingRecharge && (!blocksToPlace || blocksToPlace <= 0)) {
           e.stopPropagation();
           setDraggingEntityId(entity.id);
           hasDraggedRef.current = false;
@@ -119,16 +133,25 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
   };
 
   const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
-    if (isPlacingLand || isPlacingPerson) return;
+    if (isPlacingLand || isPlacingPerson || isTargetingRecharge || (blocksToPlace && blocksToPlace > 0)) return;
 
     const pos = getEventPos(e);
 
     if (draggingEntityId) {
         hasDraggedRef.current = true;
         const worldPos = getWorldCoordinates(pos.x, pos.y);
-        const clampedX = Math.max(0, Math.min(WORLD_SIZE, worldPos.x));
-        const clampedY = Math.max(0, Math.min(WORLD_SIZE, worldPos.y));
         
+        let clampedX = Math.max(0, Math.min(WORLD_SIZE, worldPos.x));
+        let clampedY = Math.max(0, Math.min(WORLD_SIZE, worldPos.y));
+        
+        // --- GRID SNAPPING FOR BLOCKS ---
+        const draggingEntity = entities.find(e => e.id === draggingEntityId);
+        if (draggingEntity && draggingEntity.type === EntityType.BLOCK) {
+            const snapped = snapToGrid({x: clampedX, y: clampedY});
+            clampedX = snapped.x;
+            clampedY = snapped.y;
+        }
+
         onEntityDrag(draggingEntityId, { x: clampedX, y: clampedY });
         return;
     }
@@ -150,8 +173,9 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
   };
 
   const handleCanvasClick = (e: React.MouseEvent) => {
-      if (isPlacingLand || isPlacingPerson) {
+      if (isPlacingLand || isPlacingPerson || (blocksToPlace && blocksToPlace > 0)) {
           const worldPos = getWorldCoordinates(e.clientX, e.clientY);
+          // Block placement logic will handle snapping inside createBlockEntity
           onLandPlace(worldPos);
       }
   };
@@ -160,6 +184,13 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
       if (hasDraggedRef.current) {
           return;
       }
+      
+      // NEW: Intercept click if we are targeting a node for recharge
+      if (isTargetingRecharge && entity.type === EntityType.LAND && onNodeRecharge) {
+          onNodeRecharge(entity.id);
+          return;
+      }
+
       onEntityClick(entity);
   };
 
@@ -216,10 +247,102 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
     </div>
   );
 
+  const getCursorStyle = () => {
+      if (isPlacingLand || isPlacingPerson || isTargetingRecharge || (blocksToPlace && blocksToPlace > 0)) return 'cursor-crosshair';
+      if (isPanning) return 'cursor-grabbing';
+      return 'cursor-grab';
+  };
+
+  // --- BACKGROUND RENDER LOGIC ---
+  const renderBackground = () => {
+      // LEVEL 1: Dark Tech (Default)
+      if (level === 1) {
+          return (
+              <>
+                <div className="absolute inset-0 bg-[#020617]" />
+                <div 
+                    className="absolute inset-0 opacity-20 pointer-events-none"
+                    style={{
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 1.79 4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%2364748b' fill-opacity='0.25' fill-rule='evenodd'/%3E%3C/svg%3E")`,
+                        backgroundSize: '300px 300px'
+                    }}
+                />
+                <div 
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                        background: `radial-gradient(circle at 90% 10%, rgba(234, 88, 12, 0.15) 0%, rgba(234, 88, 12, 0.05) 40%, transparent 70%), radial-gradient(circle at 10% 90%, rgba(6, 182, 212, 0.15) 0%, rgba(6, 182, 212, 0.05) 40%, transparent 70%)`
+                    }}
+                />
+                <div 
+                    className="absolute inset-0 opacity-5 pointer-events-none"
+                    style={{
+                        backgroundImage: `linear-gradient(#334155 1px, transparent 1px), linear-gradient(90deg, #334155 1px, transparent 1px)`,
+                        backgroundSize: '100px 100px'
+                    }}
+                />
+                <div className="absolute inset-0 border-4 border-cyan-900/50 rounded shadow-[0_0_50px_rgba(6,182,212,0.1)]" />
+              </>
+          );
+      } 
+      
+      // LEVEL 2: Biotech / Nature (Green/Teal)
+      else if (level === 2) {
+          return (
+              <>
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#064e3b] to-[#111827]" />
+                  {/* Organic Lake Pattern */}
+                  <div className="absolute inset-0 opacity-20 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/black-scales.png')] mix-blend-overlay" />
+                  
+                  {/* Hex Grid Overlay */}
+                  <div 
+                    className="absolute inset-0 opacity-10 pointer-events-none"
+                    style={{
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0l25.98 15v30L30 60 4.02 45V15z' fill-opacity='0' stroke='%2334d399' stroke-width='1'/%3E%3C/svg%3E")`,
+                    }}
+                  />
+                   
+                   {/* Biotech Glows */}
+                   <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_50%,rgba(16,185,129,0.1),transparent_70%)]" />
+                   <div className="absolute inset-0 border-4 border-emerald-800/50 rounded shadow-[0_0_50px_rgba(16,185,129,0.2)]" />
+              </>
+          );
+      }
+
+      // LEVEL 3: Ascension / Sky (Blue/Purple/White)
+      else {
+          return (
+              <>
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#1e1b4b] via-[#312e81] to-[#4c1d95]" />
+                  {/* Cloud/Data Texture */}
+                  <div className="absolute inset-0 opacity-30 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] mix-blend-overlay" />
+                  
+                  {/* Floating Platforms effect via gradient */}
+                  <div 
+                      className="absolute inset-0 pointer-events-none opacity-40"
+                      style={{
+                          backgroundImage: `radial-gradient(circle at 20% 30%, rgba(255,255,255,0.1) 0%, transparent 20%), radial-gradient(circle at 80% 70%, rgba(255,255,255,0.1) 0%, transparent 20%)`
+                      }}
+                  />
+                  
+                  {/* High Tech Grid */}
+                   <div 
+                    className="absolute inset-0 opacity-10 pointer-events-none"
+                    style={{
+                        backgroundImage: `linear-gradient(rgba(167,139,250,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(167,139,250,0.5) 1px, transparent 1px)`,
+                        backgroundSize: '200px 200px'
+                    }}
+                  />
+
+                  <div className="absolute inset-0 border-4 border-violet-500/50 rounded shadow-[0_0_80px_rgba(167,139,250,0.4)]" />
+              </>
+          );
+      }
+  };
+
   return (
     <div 
       ref={containerRef}
-      className={`w-full h-full bg-[#020617] overflow-hidden relative ${isPlacingLand || isPlacingPerson ? 'cursor-crosshair' : isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
+      className={`w-full h-full bg-[#020617] overflow-hidden relative ${getCursorStyle()}`}
       style={{ touchAction: 'none' }} // Prevent scrolling on mobile
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
@@ -240,54 +363,20 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
         }}
       >
-        {/* BACKGROUND: Soft Tech Relief + Thermal Map */}
-        <div className="absolute inset-0 bg-[#020617]" />
-        
-        {/* 1. Relief/Topographic Pattern (More visible now) */}
-        <div 
-            className="absolute inset-0 opacity-20 pointer-events-none"
-            style={{
-                backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%2364748b' fill-opacity='0.25' fill-rule='evenodd'/%3E%3C/svg%3E")`,
-                backgroundSize: '300px 300px'
-            }}
-        />
-
-        {/* 2. Heat Zone (Top Right - Warm) - Enhanced */}
-        <div 
-            className="absolute inset-0 pointer-events-none"
-            style={{
-                background: `radial-gradient(circle at 90% 10%, rgba(234, 88, 12, 0.15) 0%, rgba(234, 88, 12, 0.05) 40%, transparent 70%)`
-            }}
-        />
-
-        {/* 3. Cold Zone (Bottom Left - Cool) - Enhanced */}
-        <div 
-            className="absolute inset-0 pointer-events-none"
-            style={{
-                background: `radial-gradient(circle at 10% 90%, rgba(6, 182, 212, 0.15) 0%, rgba(6, 182, 212, 0.05) 40%, transparent 70%)`
-            }}
-        />
-
-        {/* 4. Digital Grid (Subtle overlay for structure) */}
-        <div 
-            className="absolute inset-0 opacity-5 pointer-events-none"
-            style={{
-                backgroundImage: `linear-gradient(#334155 1px, transparent 1px), linear-gradient(90deg, #334155 1px, transparent 1px)`,
-                backgroundSize: '100px 100px'
-            }}
-        />
-
-        {/* World Border (Neon Line) */}
-        <div className="absolute inset-0 border-4 border-cyan-900/50 rounded shadow-[0_0_50px_rgba(6,182,212,0.1)]" />
+        {/* DYNAMIC BACKGROUND */}
+        {renderBackground()}
         
         {entities.map(entity => (
           <React.Fragment key={entity.id}>
             <EntityNode 
               entity={entity} 
               onClick={handleEntityClickWrapper}
-              onMouseDown={handleEntityMouseDown} 
+              onMouseDown={handleEntityMouseDown}
+              walletStats={walletStats} // NEW: Pass Stats to Entity Node
             />
-            {isWatering && entity.type === EntityType.LAND && (
+            
+            {/* Show Recharge Effect ONLY on the specific target node */}
+            {entity.type === EntityType.LAND && rechargingNodeId === entity.id && (
                 <NanotubeRechargeEffect position={entity.position} />
             )}
           </React.Fragment>
@@ -309,6 +398,13 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
       {isPlacingPerson && (
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none text-tech-cyan animate-pulse font-tech text-xl md:text-2xl font-bold bg-slate-900/90 px-6 py-3 rounded-xl backdrop-blur-md shadow-[0_0_20px_rgba(6,182,212,0.4)] border border-tech-cyan/50 tracking-widest whitespace-nowrap z-50">
               [ TARGET: BIOBOT COORDINATES ]
+          </div>
+      )}
+
+      {/* Placing Blocks Indicator */}
+      {blocksToPlace !== undefined && blocksToPlace > 0 && (
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none text-white animate-pulse font-tech text-xl md:text-2xl font-bold bg-slate-900/90 px-6 py-3 rounded-xl backdrop-blur-md shadow-[0_0_20px_rgba(255,255,255,0.4)] border border-gray-400/50 tracking-widest whitespace-nowrap z-50">
+              [ BUILD MODE ACTIVE ]
           </div>
       )}
 

@@ -1,59 +1,48 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { MUSIC_PLAYLIST } from '../constants';
+
+import React, { useEffect } from 'react';
+import { AudioManager } from '../services/AudioManager';
 
 interface MusicPlayerProps {
-  // Removed specific isPlaying prop to allow continuous play
+  level: number;
 }
 
-export const MusicPlayer: React.FC<MusicPlayerProps> = () => {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [trackIndex, setTrackIndex] = useState(0);
-  const [hasInteracted, setHasInteracted] = useState(false);
-
+export const MusicPlayer: React.FC<MusicPlayerProps> = ({ level }) => {
+  
+  // 1. Setup unlock listeners on mount
   useEffect(() => {
-    // Attempt to unlock audio on first click anywhere
-    const enableAudio = () => {
-      setHasInteracted(true);
-      window.removeEventListener('click', enableAudio);
-      window.removeEventListener('keydown', enableAudio);
+    const unlockAudio = () => {
+      AudioManager.unlock();
+      // Remove listeners once unlocked (AudioManager handles idempotency)
+      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
     };
 
-    window.addEventListener('click', enableAudio);
-    window.addEventListener('keydown', enableAudio);
+    window.addEventListener('click', unlockAudio);
+    window.addEventListener('keydown', unlockAudio);
+    window.addEventListener('touchstart', unlockAudio);
 
     return () => {
-      window.removeEventListener('click', enableAudio);
-      window.removeEventListener('keydown', enableAudio);
+      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
     };
   }, []);
 
+  // 2. React to Level Changes
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    if (hasInteracted) {
-      audio.volume = 0.3;
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(error => {
-           console.log("Autoplay prevented until interaction");
-        });
+      if (level > 0) {
+          AudioManager.playLevel(level);
       }
-    }
-  }, [hasInteracted, trackIndex]);
+  }, [level]);
 
-  const handleEnded = () => {
-    // Loop playlist logic
-    setTrackIndex((prev) => (prev + 1) % MUSIC_PLAYLIST.length);
-  };
+  // 3. Cleanup on unmount (Optional, usually we want music to persist unless app closes)
+  useEffect(() => {
+      return () => {
+          // AudioManager.stop(); // Uncomment if music should stop when component unmounts
+      };
+  }, []);
 
-  return (
-    <audio
-      ref={audioRef}
-      src={MUSIC_PLAYLIST[trackIndex]}
-      onEnded={handleEnded}
-      loop={false} 
-      autoPlay
-    />
-  );
+  // This component renders nothing, it's a logic controller
+  return null;
 };

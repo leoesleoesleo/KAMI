@@ -38,5 +38,26 @@ export const GAME_CONFIG = {
       TIME_TO_DIE_MS: 600000, // 10 minutes at 0% energy before death
       TIME_FROZEN_MS: 300000, // 5 minutes frozen on canvas before fading
       FADE_DURATION_MS: 5000, // Duration of fade out effect
+  },
+  STRUCTURES: {
+      GRID_SIZE: 40, // 40px blocks
+      PRICES: {
+          FIREWALL: 8,
+          ENCRYPTION: 5
+      },
+      DURABILITY: {
+          FIREWALL: 1000,
+          ENCRYPTION: 500
+      }
+  },
+  LEVELS: {
+      LVL2: {
+          MIN_CRYPTO: 8000,
+          MIN_ENERGY: 400
+      },
+      LVL3: {
+          MIN_CRYPTO: 16000,
+          MIN_ENERGY: 800
+      }
   }
 };

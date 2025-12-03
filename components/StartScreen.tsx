@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
-import { AVATAR_PRESETS, BACKGROUND_IMAGE } from '../constants';
-import { Music, Play, User, Cpu, RefreshCcw } from 'lucide-react';
+import { AVATAR_PRESETS, BACKGROUND_IMAGE, GAME_VERSION, DEDICATION_IMAGE_URL } from '../constants';
+import { Play, User, Cpu, RefreshCcw, Heart, X } from 'lucide-react';
 
 interface StartScreenProps {
   onStart: (name: string, avatar: string) => void;
@@ -11,6 +12,7 @@ interface StartScreenProps {
 export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, onContinue }) => {
   const [name, setName] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_PRESETS[0]);
+  const [showCredits, setShowCredits] = useState(false);
 
   return (
     <div className="relative w-full h-screen overflow-hidden flex items-center justify-center bg-deep-space text-gray-100 font-sans">
@@ -31,6 +33,17 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
       
       <div className="absolute inset-0 z-0 bg-gradient-to-t from-deep-space via-deep-space/80 to-transparent" />
 
+      {/* CREDITS BUTTON - Top Right */}
+      <div className="absolute top-6 right-6 z-50">
+          <button 
+            onClick={() => setShowCredits(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900/80 backdrop-blur border border-white/10 hover:border-pink-500/50 hover:bg-pink-900/20 transition-all group"
+          >
+              <Heart size={16} className="text-pink-500 group-hover:animate-pulse" />
+              <span className="text-xs font-mono font-bold text-gray-400 group-hover:text-pink-200">DEDICATORIA</span>
+          </button>
+      </div>
+
       <div className="relative z-10 w-full max-w-6xl p-4 md:p-8 flex flex-col items-center overflow-y-auto h-full md:h-auto justify-center">
         
         {/* DOMINANT TITLE SECTION - RESPONSIVE */}
@@ -48,8 +61,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
             <div className="flex flex-col justify-center space-y-6 md:space-y-8">
             <div className="space-y-4 text-center md:text-left">
                 <p className="text-gray-400 font-mono text-xs md:text-sm leading-relaxed border-l-2 border-tech-cyan/50 pl-4">
-                Inicializando simulación...<br/>
-                Toma el control del núcleo central. Programa la vida, optimiza el código genético y evoluciona tu enjambre digital.
+                Tu misión es construir, optimizar y expandir un ecosistema de BioBots capaces de evolucionar, minar recursos, aprender y adaptarse en un mundo gobernado por datos.
                 </p>
             </div>
 
@@ -88,10 +100,6 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                 </button>
             </div>
 
-            <div className="flex items-center justify-center md:justify-start gap-2 text-xs text-gray-500 font-mono">
-                <Music size={12} />
-                <span>Secuencia de audio inmersiva activa</span>
-            </div>
             </div>
 
             {/* Right Col: Avatar Selection */}
@@ -131,6 +139,62 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
             </div>
         </div>
       </div>
+
+      {/* --- CREDITS & DEDICATION MODAL --- */}
+      {showCredits && (
+          <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+              <div className="bg-[#0f172a] border border-tech-cyan/30 w-full max-w-5xl rounded-3xl shadow-[0_0_60px_rgba(6,182,212,0.2)] overflow-hidden flex flex-col md:flex-row max-h-[90vh] md:h-[600px] animate-pop-in relative">
+                  
+                  {/* Close Button */}
+                  <button 
+                    onClick={() => setShowCredits(false)}
+                    className="absolute top-4 right-4 z-20 text-gray-500 hover:text-white bg-black/50 rounded-full p-2 transition-colors"
+                  >
+                      <X size={24} />
+                  </button>
+
+                  {/* LEFT: Text Content */}
+                  <div className="flex-1 p-8 md:p-12 flex flex-col justify-center relative overflow-hidden">
+                      {/* Decorative Background Elements */}
+                      <div className="absolute top-0 left-0 w-32 h-32 border-t-2 border-l-2 border-tech-cyan/20 rounded-tl-3xl" />
+                      <div className="absolute bottom-0 right-0 w-32 h-32 border-b-2 border-r-2 border-tech-purple/20 rounded-br-3xl" />
+                      
+                      <div className="relative z-10 space-y-6">
+                          <div className="flex items-center gap-3 text-tech-cyan mb-2">
+                              <Heart className="fill-current animate-pulse" size={24} />
+                              <span className="font-mono tracking-widest uppercase font-bold">Dedicatoria</span>
+                          </div>
+
+                          <h2 className="text-4xl md:text-5xl font-tech font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 leading-tight">
+                              Para Santiago
+                          </h2>
+
+                          <div className="w-16 h-1 bg-gradient-to-r from-tech-cyan to-tech-purple" />
+
+                          <p className="font-sans text-lg md:text-xl text-gray-300 leading-relaxed font-light italic opacity-90">
+                              "Este juego fue creado por <strong className="text-white font-semibold">Leonardo Patiño Rodríguez</strong> en el año 2025 para su hijo <strong className="text-tech-cyan font-semibold">Santiago Patiño David</strong>, de 8 años, a quien quiere profundamente. Esta obra está dedicada a su curiosidad, imaginación y sueños."
+                          </p>
+
+                          <div className="pt-8 flex items-center gap-4 opacity-50">
+                              <Cpu size={20} />
+                              <span className="font-mono text-sm">BIOBOTS SYSTEM {GAME_VERSION}</span>
+                          </div>
+                      </div>
+                  </div>
+
+                  {/* RIGHT: Image Content */}
+                  <div className="flex-1 relative h-64 md:h-auto bg-black">
+                      <div className="absolute inset-0 bg-gradient-to-b md:bg-gradient-to-r from-[#0f172a] to-transparent z-10" />
+                      <img 
+                        src={DEDICATION_IMAGE_URL} 
+                        alt="Dedicatoria" 
+                        className="w-full h-full object-cover object-center opacity-80 hover:opacity-100 transition-opacity duration-1000"
+                      />
+                      <div className="absolute inset-0 border-l border-white/10 hidden md:block" />
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };
