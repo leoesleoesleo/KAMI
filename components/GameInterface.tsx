@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PlayerState, GameEntity, Gender, INITIAL_POINTS, ACTION_COST, EntityType } from '../types';
-import { Bot, Database, Zap, Terminal, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle } from 'lucide-react';
+import { Bot, Database, Zap, Pickaxe, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle, HardDrive, LogOut, RotateCcw } from 'lucide-react';
 import { createPersonJSON } from '../services/gameService';
 import { GAME_CONFIG } from '../gameConfig';
 import { LiveConsole } from './LiveConsole';
@@ -20,6 +20,8 @@ interface GameInterfaceProps {
       globalScore: number;
       averageEnergy: number;
   };
+  onExit: () => void;
+  onRestart: () => void;
 }
 
 interface ChatMessage {
@@ -37,7 +39,9 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     isPlacingLand,
     isPlacingPerson,
     onBuyMana,
-    globalStats
+    globalStats,
+    onExit,
+    onRestart
 }) => {
   const [isCreationModalOpen, setModalOpen] = useState(false);
   const [creationGender, setCreationGender] = useState<Gender>(Gender.MALE);
@@ -171,7 +175,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                 reply = "Afirmativo. Iniciando subrutina de producción.";
             } else {
                 if (personality === 'Lógico') reply = "Cálculo finalizado. Probabilidad de éxito: 99.9%.";
-                else if (personality === 'Curioso') reply = "¿Es este un bug en la matriz o una característica?";
+                else if (personality === 'Curioso') reply = "¿Es esa la voluntad del cosmos? Interesante...";
                 else if (personality === 'Protector') reply = "Firewall activo. Perímetro seguro.";
                 else reply = "Datos recibidos. Actualizando base de conocimientos.";
             }
@@ -200,6 +204,9 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       e.stopPropagation();
       setChatOpen(false);
   };
+
+  // Helper to count active bots for profile
+  const activeBiobotsCount = entities.filter(e => e.type === EntityType.PERSON && e.attributes?.estado !== 'muerto').length;
 
   return (
     <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 md:p-6 z-20 font-sans">
@@ -263,40 +270,40 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       {/* Top Bar Wrapper - Responsive */}
       <div className="flex flex-col md:flex-row items-center md:items-start justify-between pointer-events-auto w-full gap-3 md:gap-0">
         
-        {/* Left: Player Profile & Mana */}
+        {/* Left: Player Profile & Energy */}
         <div 
             onClick={() => setPlayerProfileOpen(true)}
             className="bg-panel-dark backdrop-blur-md rounded-xl shadow-lg p-2 md:p-3 flex items-center gap-3 md:gap-4 border border-tech-cyan/30 cursor-pointer hover:bg-slate-800 transition-colors w-full md:w-auto justify-center md:justify-start group"
         >
             <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg overflow-hidden border border-tech-cyan shrink-0 relative">
-                <img src={player.avatarUrl} alt="God Avatar" className="w-full h-full object-cover" />
+                <img src={player.avatarUrl} alt="Architect Avatar" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-tech-cyan/20 group-hover:bg-transparent transition-colors" />
             </div>
             <div className="flex flex-col items-start">
                 <h2 className="font-tech font-bold text-gray-100 text-sm md:text-base tracking-wide">{player.name}</h2>
                 <div className="flex items-center gap-1 text-tech-cyan font-mono font-bold text-xs md:text-sm">
                     <Zap size={14} fill="currentColor" />
-                    <span>{player.points} ENERGY</span>
+                    <span>{player.points} ENERGÍA</span>
                 </div>
             </div>
         </div>
 
         {/* Right: Global Stats Group */}
         <div className="flex gap-2 md:gap-3 w-full md:w-auto justify-center md:justify-end">
-             {/* Global Production Stat */}
+             {/* Global Crypto Stat */}
              <div className="bg-panel-dark backdrop-blur-md rounded-xl shadow-lg p-2 md:p-3 flex flex-col items-center justify-center flex-1 md:flex-none md:min-w-[120px] border border-tech-purple/30 h-14 md:h-16 group hover:border-tech-purple/60 transition-colors">
                  <span className="text-[9px] md:text-[10px] text-tech-purple font-mono font-bold uppercase tracking-wider flex items-center gap-1">
-                     <Trophy size={10} /> PRODUCCIÓN
+                     <Trophy size={10} /> CRIPTOMONEDAS
                  </span>
                  <span className="text-base md:text-xl font-tech font-bold text-white leading-tight drop-shadow-[0_0_5px_rgba(139,92,246,0.5)]">
                      {globalStats.globalScore.toLocaleString()}
                  </span>
             </div>
 
-            {/* Average Energy Stat */}
+            {/* Vitality Stat */}
             <div className="bg-panel-dark backdrop-blur-md rounded-xl shadow-lg p-2 md:p-3 flex flex-col items-center justify-center flex-1 md:flex-none md:min-w-[120px] border border-neon-green/30 h-14 md:h-16 group hover:border-neon-green/60 transition-colors">
                  <span className="text-[9px] md:text-[10px] text-neon-green font-mono font-bold uppercase tracking-wider flex items-center gap-1">
-                     <Battery size={10} /> INTEGRIDAD
+                     <Battery size={10} /> VITALIDAD DE BIOBOTS
                  </span>
                  <span className={`text-base md:text-xl font-tech font-bold leading-tight ${globalStats.averageEnergy > 70 ? 'text-neon-green' : globalStats.averageEnergy > 30 ? 'text-yellow-500' : 'text-alert-red'}`}>
                      {globalStats.averageEnergy}%
@@ -322,26 +329,39 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                   </div>
                   
                   <div className="space-y-3 md:space-y-4 font-mono">
+                      {/* Unidades Creadas (Histórico) */}
                       <div className="flex items-center justify-between p-3 md:p-4 bg-slate-800/50 rounded-lg border border-slate-700">
                           <div className="flex items-center gap-3 text-gray-400">
-                              <User size={18} />
-                              <span className="text-sm md:text-base">Unidades Activas</span>
+                              <Cpu size={18} />
+                              <span className="text-sm md:text-base">Unidades Creadas</span>
                           </div>
                           <span className="font-bold text-lg md:text-xl text-white">{player.stats.entitiesCreated}</span>
                       </div>
+
+                      {/* Unidades Disponibles (Activas) */}
                       <div className="flex items-center justify-between p-3 md:p-4 bg-slate-800/50 rounded-lg border border-slate-700">
                           <div className="flex items-center gap-3 text-gray-400">
-                              <Database size={18} />
-                              <span className="text-sm md:text-base">Nodos de Datos</span>
+                              <User size={18} />
+                              <span className="text-sm md:text-base">Unidades Disponibles</span>
+                          </div>
+                          <span className="font-bold text-lg md:text-xl text-neon-green">{activeBiobotsCount}</span>
+                      </div>
+
+                      {/* Nodos de Datos (Creados) */}
+                      <div className="flex items-center justify-between p-3 md:p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+                          <div className="flex items-center gap-3 text-gray-400">
+                              <HardDrive size={18} />
+                              <span className="text-sm md:text-base">Nodos Creados</span>
                           </div>
                           <span className="font-bold text-lg md:text-xl text-white">{player.stats.landsCreated}</span>
                       </div>
+
                       <div className="flex items-center justify-between p-3 md:p-4 bg-slate-800/50 rounded-lg border border-slate-700">
                           <div className="flex items-center gap-3 text-gray-400">
                               <Zap size={18} />
                               <span className="text-sm md:text-base">Energía Total</span>
                           </div>
-                          <span className="font-bold text-lg md:text-xl text-tech-cyan">{player.stats.manaSpent}</span>
+                          <span className="font-bold text-lg md:text-xl text-tech-cyan">{player.points}</span>
                       </div>
                       
                       {/* Shop Section */}
@@ -530,15 +550,40 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                 </button>
             </div>
 
-            {/* Work - Terminal Icon */}
+            {/* Work (Mine) - Pickaxe Icon */}
             <div className="relative group shrink-0">
                 <button 
                     onClick={handleWorkProtocol}
                     disabled={isPlacingLand || isPlacingPerson}
                     className="w-10 h-10 md:w-11 md:h-11 rounded-lg bg-slate-800 border border-orange-500/40 flex items-center justify-center text-orange-500 hover:bg-orange-500 hover:text-white transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-[0_0_15px_rgba(249,115,22,0.4)]"
-                    title="Protocolo de Trabajo"
+                    title="Minar Criptomonedas"
                 >
-                    <Terminal size={20} />
+                    <Pickaxe size={20} />
+                </button>
+            </div>
+
+            {/* Divider */}
+            <div className="h-px bg-white/20 w-full my-1" />
+
+             {/* System Controls: Restart */}
+             <div className="relative group shrink-0">
+                <button 
+                    onClick={onRestart}
+                    className="w-10 h-10 md:w-11 md:h-11 rounded-lg bg-slate-800 border border-yellow-500/30 flex items-center justify-center text-yellow-500 hover:bg-yellow-500 hover:text-black transition-all transform hover:scale-110"
+                    title="Reiniciar Simulación"
+                >
+                    <RotateCcw size={18} />
+                </button>
+            </div>
+
+             {/* System Controls: Exit */}
+             <div className="relative group shrink-0">
+                <button 
+                    onClick={onExit}
+                    className="w-10 h-10 md:w-11 md:h-11 rounded-lg bg-slate-800 border border-red-500/30 flex items-center justify-center text-red-500 hover:bg-red-600 hover:text-white transition-all transform hover:scale-110"
+                    title="Cerrar Sesión"
+                >
+                    <LogOut size={18} />
                 </button>
             </div>
         </div>

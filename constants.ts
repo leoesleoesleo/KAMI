@@ -1,4 +1,5 @@
 
+
 export const MUSIC_PLAYLIST = [
   "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=music-for-video-epic-cinematic-dramatic-adventure-background-111737.mp3",
   "https://cdn.pixabay.com/download/audio/2022/03/09/audio_c8c8a73467.mp3?filename=cinematic-atmosphere-score-1-original-soundtrack-10255.mp3",
@@ -24,4 +25,8 @@ export const AVATAR_PRESETS = [
 // High-Tech Digital Landscape / Circuit Board City
 export const BACKGROUND_IMAGE = "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?q=80&w=2070&auto=format&fit=crop";
 
-export const WORLD_SIZE = 3000;
+export const WORLD_SIZE = 8000;
+
+// System Configuration
+export const AUTOSAVE_INTERVAL_MS = 300000; // 5 Minutes
+export const LOCAL_STORAGE_KEY = 'biobots_genesis_save_v1';

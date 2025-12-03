@@ -8,12 +8,15 @@ import { useGameLoop } from './hooks/useGameLoop';
 import { createPersonEntity, createLandEntity, generateRandomPosition } from './services/gameService';
 import { RuntimeTestRunner } from './services/RuntimeTestRunner';
 import { Logger } from './services/LoggerService';
+import { StorageService } from './services/storageService';
 import { GameState, GameEntity, ACTION_COST, INITIAL_POINTS, EntityAttributes, EntityType, Vector2, EventType, EventCategory, EventSeverity } from './types';
-import { WORLD_SIZE, WATER_SOUND_URL } from './constants';
+import { WORLD_SIZE, WATER_SOUND_URL, AUTOSAVE_INTERVAL_MS } from './constants';
 import { GAME_CONFIG } from './gameConfig';
 
 function App() {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [hasSaveGame, setHasSaveGame] = useState(false);
+
   // Use lazy initialization for Audio to avoid blocking UI render if AudioContext is not ready
   const waterAudioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -39,12 +42,24 @@ function App() {
         landsCreated: 0
       }
     }
-    // isLogViewerOpen removed
   });
 
+  // Ref to access latest state inside intervals/timeouts without triggering re-renders
+  const gameStateRef = useRef(gameState);
+
+  // Update ref whenever state changes
   useEffect(() => {
-      // Lazy init audio
+      gameStateRef.current = gameState;
+  }, [gameState]);
+
+  // Init Audio & Check Save
+  useEffect(() => {
       waterAudioRef.current = new Audio(WATER_SOUND_URL);
+      
+      // Check for save game
+      if (StorageService.hasSaveGame()) {
+          setHasSaveGame(true);
+      }
   }, []);
 
   useEffect(() => {
@@ -73,6 +88,25 @@ function App() {
     }, 60000); // Every minute
     return () => clearInterval(interval);
   }, [isPlaying, gameState.entities.length, gameState.player.points, globalStats.globalScore]);
+
+  // --- AUTO-SAVE SYSTEM ---
+  useEffect(() => {
+      if (!isPlaying) return;
+
+      const interval = setInterval(() => {
+          const success = StorageService.saveGame(gameStateRef.current);
+          if (success) {
+              Logger.log(
+                  EventType.SYSTEM_ALERT,
+                  EventCategory.SYSTEM,
+                  EventSeverity.INFO,
+                  { message: 'Auto-save Complete' }
+              );
+          }
+      }, AUTOSAVE_INTERVAL_MS);
+
+      return () => clearInterval(interval);
+  }, [isPlaying]);
 
   const [selectedEntity, setSelectedEntity] = useState<GameEntity | null>(null);
 
@@ -136,7 +170,68 @@ function App() {
       }
     }));
     
-    Logger.log(EventType.SYSTEM_ALERT, EventCategory.SYSTEM, EventSeverity.INFO, { message: 'Game Started', player: name });
+    Logger.log(EventType.SYSTEM_ALERT, EventCategory.SYSTEM, EventSeverity.INFO, { message: 'New Session Initialized', player: name });
+  };
+
+  const handleContinueGame = () => {
+      const loadedState = StorageService.loadGame();
+      if (loadedState) {
+          setGameState({
+              ...loadedState,
+              isPlaying: true, // Force playing state
+              isWatering: false // Reset transient UI states
+          });
+          setIsPlaying(true);
+          Logger.log(EventType.SYSTEM_ALERT, EventCategory.SYSTEM, EventSeverity.INFO, { message: 'Session Restored from Backup' });
+      } else {
+          // Fallback if load fails
+          alert("Error: Save file corrupted or missing.");
+          setHasSaveGame(false);
+      }
+  };
+
+  const handleExitGame = () => {
+      // Save before exiting
+      StorageService.saveGame(gameStateRef.current);
+      
+      setIsPlaying(false);
+      setGameState({
+        isPlaying: false,
+        isWatering: false,
+        entities: [],
+        player: {
+          name: '',
+          avatarUrl: '',
+          points: INITIAL_POINTS,
+          stats: {
+            entitiesCreated: 0,
+            manaSpent: 0,
+            landsCreated: 0
+          }
+        }
+      });
+      setHasSaveGame(true); // Since we just saved
+      Logger.log(EventType.SYSTEM_ALERT, EventCategory.SYSTEM, EventSeverity.WARNING, { message: 'Session Terminated & Saved' });
+  };
+
+  const handleRestartGame = () => {
+      // Clear save on restart? Or just overwrite? Let's just reset state.
+      setGameState(prev => ({
+        ...prev,
+        isWatering: false,
+        entities: [],
+        player: {
+          ...prev.player,
+          points: INITIAL_POINTS,
+          stats: {
+            entitiesCreated: 0,
+            manaSpent: 0,
+            landsCreated: 0
+          }
+        }
+      }));
+      setGlobalStats({ globalScore: 0, averageEnergy: 0 });
+      Logger.log(EventType.SYSTEM_ALERT, EventCategory.SYSTEM, EventSeverity.WARNING, { message: 'System Reboot Initiated' });
   };
 
   const handleAction = (actionType: string, payload?: any) => {
@@ -336,7 +431,11 @@ function App() {
       <MusicPlayer />
 
       {!isPlaying ? (
-        <StartScreen onStart={startGame} />
+        <StartScreen 
+            onStart={startGame} 
+            hasSaveGame={hasSaveGame}
+            onContinue={handleContinueGame}
+        />
       ) : (
         <div className="relative w-full h-full animate-fadeIn">
           <WorldCanvas 
@@ -359,6 +458,8 @@ function App() {
             isPlacingPerson={!!pendingPersonAttributes}
             onBuyMana={handleBuyMana}
             globalStats={globalStats}
+            onExit={handleExitGame}
+            onRestart={handleRestartGame}
           />
         </div>
       )}

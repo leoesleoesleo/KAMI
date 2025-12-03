@@ -34,6 +34,16 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
 
   const hasDraggedRef = useRef(false);
 
+  // Helper to get coordinates from either Mouse or Touch event
+  const getEventPos = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
+      if ('touches' in e && e.touches.length > 0) {
+          return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+      // For mouse events or if touches is empty
+      const mouseEvent = e as React.MouseEvent | MouseEvent;
+      return { x: mouseEvent.clientX, y: mouseEvent.clientY };
+  };
+
   const applyZoom = (newScale: number) => {
       if (!containerRef.current) return;
       
@@ -84,19 +94,23 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
      };
   };
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
     if (isPlacingLand || isPlacingPerson) return;
+    
+    // Check if it's a mouse event and left click (button 0)
+    // For touch, there is no 'button' property, so we proceed
+    if ('button' in e && e.button !== 0) return;
 
-    if (e.button === 0) {
-      if (draggingEntityId) {
-      } else {
-        setIsPanning(true);
-        setStartPan({ x: e.clientX - offset.x, y: e.clientY - offset.y });
-      }
+    if (draggingEntityId) {
+        // Entity logic handled in dragging effect
+    } else {
+      setIsPanning(true);
+      const pos = getEventPos(e);
+      setStartPan({ x: pos.x - offset.x, y: pos.y - offset.y });
     }
   };
 
-  const handleEntityMouseDown = (e: React.MouseEvent, entity: GameEntity) => {
+  const handleEntityMouseDown = (e: React.MouseEvent | React.TouchEvent, entity: GameEntity) => {
       if ((entity.type === EntityType.LAND || entity.type === EntityType.PERSON) && !isPlacingLand && !isPlacingPerson) {
           e.stopPropagation();
           setDraggingEntityId(entity.id);
@@ -104,12 +118,14 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
       }
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
     if (isPlacingLand || isPlacingPerson) return;
+
+    const pos = getEventPos(e);
 
     if (draggingEntityId) {
         hasDraggedRef.current = true;
-        const worldPos = getWorldCoordinates(e.clientX, e.clientY);
+        const worldPos = getWorldCoordinates(pos.x, pos.y);
         const clampedX = Math.max(0, Math.min(WORLD_SIZE, worldPos.x));
         const clampedY = Math.max(0, Math.min(WORLD_SIZE, worldPos.y));
         
@@ -119,8 +135,8 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
 
     if (isPanning) {
       setOffset({
-        x: e.clientX - startPan.x,
-        y: e.clientY - startPan.y,
+        x: pos.x - startPan.x,
+        y: pos.y - startPan.y,
       });
     }
   };
@@ -204,14 +220,15 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
     <div 
       ref={containerRef}
       className={`w-full h-full bg-[#020617] overflow-hidden relative ${isPlacingLand || isPlacingPerson ? 'cursor-crosshair' : isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
+      style={{ touchAction: 'none' }} // Prevent scrolling on mobile
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       onClick={handleCanvasClick}
-      onTouchStart={handleMouseDown as any}
-      onTouchMove={handleMouseMove as any}
+      onTouchStart={handleMouseDown}
+      onTouchMove={handleMouseMove}
       onTouchEnd={handleMouseUp}
     >
       {/* World Container */}
@@ -226,28 +243,28 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
         {/* BACKGROUND: Soft Tech Relief + Thermal Map */}
         <div className="absolute inset-0 bg-[#020617]" />
         
-        {/* 1. Relief/Topographic Pattern (Subtle) */}
+        {/* 1. Relief/Topographic Pattern (More visible now) */}
         <div 
-            className="absolute inset-0 opacity-10 pointer-events-none"
+            className="absolute inset-0 opacity-20 pointer-events-none"
             style={{
-                backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%239C92AC' fill-opacity='0.2' fill-rule='evenodd'/%3E%3C/svg%3E")`,
+                backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%2364748b' fill-opacity='0.25' fill-rule='evenodd'/%3E%3C/svg%3E")`,
                 backgroundSize: '300px 300px'
             }}
         />
 
-        {/* 2. Heat Zone (Top Right - Warm) */}
+        {/* 2. Heat Zone (Top Right - Warm) - Enhanced */}
         <div 
-            className="absolute inset-0 opacity-15 pointer-events-none"
+            className="absolute inset-0 pointer-events-none"
             style={{
-                background: `radial-gradient(circle at 80% 20%, rgba(249, 115, 22, 0.4) 0%, transparent 60%)`
+                background: `radial-gradient(circle at 90% 10%, rgba(234, 88, 12, 0.15) 0%, rgba(234, 88, 12, 0.05) 40%, transparent 70%)`
             }}
         />
 
-        {/* 3. Cold Zone (Bottom Left - Cool) */}
+        {/* 3. Cold Zone (Bottom Left - Cool) - Enhanced */}
         <div 
-            className="absolute inset-0 opacity-15 pointer-events-none"
+            className="absolute inset-0 pointer-events-none"
             style={{
-                background: `radial-gradient(circle at 20% 80%, rgba(6, 182, 212, 0.4) 0%, transparent 60%)`
+                background: `radial-gradient(circle at 10% 90%, rgba(6, 182, 212, 0.15) 0%, rgba(6, 182, 212, 0.05) 40%, transparent 70%)`
             }}
         />
 
@@ -255,7 +272,7 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
         <div 
             className="absolute inset-0 opacity-5 pointer-events-none"
             style={{
-                backgroundImage: `linear-gradient(#1e293b 1px, transparent 1px), linear-gradient(90deg, #1e293b 1px, transparent 1px)`,
+                backgroundImage: `linear-gradient(#334155 1px, transparent 1px), linear-gradient(90deg, #334155 1px, transparent 1px)`,
                 backgroundSize: '100px 100px'
             }}
         />
@@ -284,7 +301,7 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
       {/* Placing Indicator */}
       {isPlacingLand && (
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none text-neon-green animate-pulse font-tech text-xl md:text-2xl font-bold bg-slate-900/90 px-6 py-3 rounded-xl backdrop-blur-md shadow-[0_0_20px_rgba(34,197,94,0.4)] border border-neon-green/50 tracking-widest whitespace-nowrap z-50">
-              [ TARGET: LAND COORDINATES ]
+              [ TARGET: DATA NODE COORDINATES ]
           </div>
       )}
 

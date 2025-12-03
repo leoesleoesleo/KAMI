@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { AVATAR_PRESETS, BACKGROUND_IMAGE } from '../constants';
-import { Music, Play, User, Cpu } from 'lucide-react';
+import { Music, Play, User, Cpu, RefreshCcw } from 'lucide-react';
 
 interface StartScreenProps {
   onStart: (name: string, avatar: string) => void;
+  hasSaveGame?: boolean;
+  onContinue?: () => void;
 }
 
-export const StartScreen: React.FC<StartScreenProps> = ({ onStart }) => {
+export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, onContinue }) => {
   const [name, setName] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_PRESETS[0]);
 
@@ -52,15 +54,27 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart }) => {
             </div>
 
             <div className="space-y-6">
+                
+                {/* CONTINUE BUTTON */}
+                {hasSaveGame && onContinue && (
+                    <button 
+                    onClick={onContinue}
+                    className="w-full py-4 rounded-xl flex items-center justify-center gap-3 font-tech font-bold tracking-widest transition-all duration-300 relative overflow-hidden group bg-neon-green/20 text-neon-green border border-neon-green hover:bg-neon-green hover:text-black hover:shadow-[0_0_30px_rgba(34,197,94,0.6)] animate-pulse"
+                    >
+                        <RefreshCcw size={20} fill="currentColor" />
+                        RESTAURAR SIMULACIÓN
+                    </button>
+                )}
+
                 <div className="relative group">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-tech-cyan group-focus-within:text-neon-green transition-colors" size={20} />
-                <input 
-                    type="text" 
-                    placeholder="Identificador de Arquitecto"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-black/40 border border-tech-cyan/30 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-tech-cyan focus:shadow-[0_0_15px_rgba(6,182,212,0.3)] transition-all font-mono"
-                />
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-tech-cyan group-focus-within:text-neon-green transition-colors" size={20} />
+                    <input 
+                        type="text" 
+                        placeholder="Identificador de Arquitecto"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full bg-black/40 border border-tech-cyan/30 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-tech-cyan focus:shadow-[0_0_15px_rgba(6,182,212,0.3)] transition-all font-mono"
+                    />
                 </div>
                 
                 <button 
@@ -70,7 +84,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart }) => {
                 >
                 <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
                 <Play size={20} fill="currentColor" />
-                EJECUTAR SIMULACIÓN
+                EJECUTAR NUEVA SIMULACIÓN
                 </button>
             </div>
 

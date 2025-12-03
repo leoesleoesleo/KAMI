@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { GameEntity, EntityType } from '../types';
-import { HardDrive } from 'lucide-react';
+import { Server } from 'lucide-react';
 import { GAME_CONFIG } from '../gameConfig';
 
 interface EntityNodeProps {
   entity: GameEntity;
   onClick: (entity: GameEntity) => void;
-  onMouseDown?: (e: React.MouseEvent, entity: GameEntity) => void;
+  onMouseDown?: (e: React.MouseEvent | React.TouchEvent, entity: GameEntity) => void;
 }
 
 const EMOTES = ['😉', '😄', '😍', '😮', '🤨', '❤️', '🎵', '🤔', '✍️', '💬', '💤'];
@@ -127,6 +127,7 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
         style={{ left: entity.position.x, top: entity.position.y }}
         onClick={(e) => { e.stopPropagation(); onClick(entity); }}
         onMouseDown={(e) => onMouseDown && onMouseDown(e, entity)}
+        onTouchStart={(e) => onMouseDown && onMouseDown(e, entity)}
       >
         <div className={`relative ${!isDead ? 'animate-breathe' : ''} ${isEating ? 'scale-110' : ''}`}>
           <div className="absolute top-10 left-1/2 -translate-x-1/2 w-10 h-3 bg-black/40 blur-sm rounded-full scale-y-50" />
@@ -168,7 +169,7 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
     );
   }
 
-  // --- LAND RENDER ---
+  // --- LAND RENDER (SERVER FARM) ---
   if (entity.type === EntityType.LAND) {
       const resources = entity.landAttributes?.resourceLevel || 0;
       
@@ -194,23 +195,25 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
           className="absolute transform -translate-x-1/2 -translate-y-1/2 z-0 cursor-move group"
           style={{ left: entity.position.x, top: entity.position.y }}
           onMouseDown={(e) => onMouseDown && onMouseDown(e, entity)}
+          onTouchStart={(e) => onMouseDown && onMouseDown(e, entity)}
           onClick={(e) => { e.stopPropagation(); onClick(entity); }}
         >
-          <div className="relative w-32 h-32 opacity-90 transition-transform group-active:scale-105">
-            <div className={`absolute inset-0 rounded-3xl blur-xl scale-110 animate-pulse-slow group-hover:opacity-80 transition-colors duration-1000 ${glowColor}`} />
-            <div className={`absolute inset-0 border-2 border-dashed rounded-3xl animate-[spin_20s_linear_infinite] transition-colors duration-1000 ${borderClass}`} />
-            <div className={`absolute inset-2 backdrop-blur-sm rounded-2xl border border-white/20 flex flex-col items-center justify-center shadow-sm transition-all duration-1000 ${bgClass}`}>
-                {/* Updated Icon: HardDrive/Database to match 'Node' theme */}
-                <HardDrive className={`w-12 h-12 transition-colors duration-1000 drop-shadow-sm ${iconColor}`} />
-                <div className="w-16 h-1.5 bg-black/20 rounded-full mt-2 overflow-hidden">
+          {/* Reduced size: w-20 h-20 mobile, w-24 h-24 desktop */}
+          <div className="relative w-20 h-20 md:w-24 md:h-24 opacity-90 transition-transform group-active:scale-105">
+            <div className={`absolute inset-0 rounded-xl blur-lg scale-110 animate-pulse-slow group-hover:opacity-80 transition-colors duration-1000 ${glowColor}`} />
+            <div className={`absolute inset-0 border border-dashed rounded-xl animate-[spin_20s_linear_infinite] transition-colors duration-1000 ${borderClass}`} />
+            <div className={`absolute inset-1 backdrop-blur-sm rounded-lg border border-white/20 flex flex-col items-center justify-center shadow-sm transition-all duration-1000 ${bgClass}`}>
+                {/* Updated Icon: Server Farm */}
+                <Server className={`w-8 h-8 md:w-10 md:h-10 transition-colors duration-1000 drop-shadow-sm ${iconColor}`} />
+                <div className="w-12 h-1 bg-black/20 rounded-full mt-1.5 overflow-hidden">
                     <div className="h-full bg-white/90 transition-all duration-500" style={{ width: `${resources}%` }} />
                 </div>
             </div>
             
-            <div className={`absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 rounded-tl-lg transition-colors duration-1000 ${borderClass.replace('border-dashed', '')}`} />
-            <div className={`absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 rounded-tr-lg transition-colors duration-1000 ${borderClass.replace('border-dashed', '')}`} />
-            <div className={`absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 rounded-bl-lg transition-colors duration-1000 ${borderClass.replace('border-dashed', '')}`} />
-            <div className={`absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 rounded-br-lg transition-colors duration-1000 ${borderClass.replace('border-dashed', '')}`} />
+            <div className={`absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 rounded-tl transition-colors duration-1000 ${borderClass.replace('border-dashed', '')}`} />
+            <div className={`absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 rounded-tr transition-colors duration-1000 ${borderClass.replace('border-dashed', '')}`} />
+            <div className={`absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 rounded-bl transition-colors duration-1000 ${borderClass.replace('border-dashed', '')}`} />
+            <div className={`absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 rounded-br transition-colors duration-1000 ${borderClass.replace('border-dashed', '')}`} />
           </div>
         </div>
       );
