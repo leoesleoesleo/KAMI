@@ -292,6 +292,7 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
   // --- LAND RENDER (SERVER FARM) ---
   if (entity.type === EntityType.LAND) {
       const resources = entity.landAttributes?.resourceLevel || 0;
+      const isGhost = entity.landAttributes?.isGhost;
       
       let bgClass = GAME_CONFIG.LAND.COLORS.EMPTY;
       let borderClass = 'border-yellow-500/40';
@@ -310,16 +311,18 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
           glowColor = 'bg-pink-400/30';
       }
 
+      const cursorClass = isGhost ? 'cursor-not-allowed opacity-80' : 'cursor-move group-active:scale-105';
+
       return (
         <div 
-          className="absolute transform -translate-x-1/2 -translate-y-1/2 z-0 cursor-move group"
+          className={`absolute transform -translate-x-1/2 -translate-y-1/2 z-0 group ${cursorClass}`}
           style={{ left: entity.position.x, top: entity.position.y }}
           onMouseDown={(e) => onMouseDown && onMouseDown(e, entity)}
           onTouchStart={(e) => onMouseDown && onMouseDown(e, entity)}
           onClick={(e) => { e.stopPropagation(); onClick(entity); }}
         >
           {/* Reduced size: w-20 h-20 mobile, w-24 h-24 desktop */}
-          <div className="relative w-20 h-20 md:w-24 md:h-24 opacity-90 transition-transform group-active:scale-105">
+          <div className="relative w-20 h-20 md:w-24 md:h-24 opacity-90 transition-transform">
             <div className={`absolute inset-0 rounded-xl blur-lg scale-110 animate-pulse-slow group-hover:opacity-80 transition-colors duration-1000 ${glowColor}`} />
             <div className={`absolute inset-0 border border-dashed rounded-xl animate-[spin_20s_linear_infinite] transition-colors duration-1000 ${borderClass}`} />
             <div className={`absolute inset-1 backdrop-blur-sm rounded-lg border border-white/20 flex flex-col items-center justify-center shadow-sm transition-all duration-1000 ${bgClass}`}>

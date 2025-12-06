@@ -13,6 +13,9 @@ export const MUSIC_TRACKS_BY_LEVEL: Record<number, string> = {
 
 export const WATER_SOUND_URL = "https://cdn.pixabay.com/download/audio/2022/03/10/audio_5a26514785.mp3?filename=sci-fi-charge-up-37395.mp3";
 
+// Deep Drone / Low Frequency Mystery Sound for Loading Screen
+export const LOADING_SOUND_URL = "https://cdn.pixabay.com/download/audio/2022/03/24/audio_c8c8a73467.mp3?filename=dark-drone-science-fiction-atmosphere-19676.mp3";
+
 export const MUSIC_PLAYLIST = Object.values(MUSIC_TRACKS_BY_LEVEL);
 
 // --- ADVANCED MUSIC SYSTEM CONFIGURATION ---

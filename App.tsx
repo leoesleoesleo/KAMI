@@ -5,17 +5,19 @@ import { WorldCanvas } from './components/WorldCanvas';
 import { GameInterface } from './components/GameInterface';
 import { MusicPlayer } from './components/MusicPlayer';
 import { InstallPWA } from './components/InstallPWA';
+import { LoadingScreen } from './components/LoadingScreen'; // Import Loading Screen
 import { useGameLoop } from './hooks/useGameLoop';
-import { createPersonEntity, createLandEntity, generateRandomPosition, createWalletEntity, createBlockEntity } from './services/gameService';
+import { createPersonEntity, createLandEntity, generateRandomPosition, createWalletEntity, createBlockEntity, createGhostNode } from './services/gameService';
 import { RuntimeTestRunner } from './services/RuntimeTestRunner';
 import { Logger } from './services/LoggerService';
 import { StorageService } from './services/storageService';
-import { AudioManager } from './services/AudioManager'; // Import AudioManager
+import { AudioManager } from './services/AudioManager'; 
 import { GameState, GameEntity, ACTION_COST, INITIAL_POINTS, EntityAttributes, EntityType, Vector2, EventType, EventCategory, EventSeverity, BlockType } from './types';
 import { WORLD_SIZE, WATER_SOUND_URL, AUTOSAVE_INTERVAL_MS } from './constants';
 import { GAME_CONFIG } from './gameConfig';
 
 function App() {
+  const [isLoading, setIsLoading] = useState(true); // Initial Loading State
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasSaveGame, setHasSaveGame] = useState(false);
 
@@ -23,17 +25,15 @@ function App() {
   const waterAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const [wastedManaTrigger, setWastedManaTrigger] = useState(0); 
-  const [targetLostTrigger, setTargetLostTrigger] = useState(0); // New trigger for auto-cancel
+  const [targetLostTrigger, setTargetLostTrigger] = useState(0); 
+  const [ghostDetectedTrigger, setGhostDetectedTrigger] = useState(0); // New Trigger
   const [isPlacingLand, setIsPlacingLand] = useState(false);
   
-  // New State for Person Placement
   const [pendingPersonAttributes, setPendingPersonAttributes] = useState<EntityAttributes | null>(null);
   
-  // New State for Single Target Recharge
   const [isTargetingRecharge, setIsTargetingRecharge] = useState(false);
   const [rechargingNodeId, setRechargingNodeId] = useState<string | null>(null);
 
-  // --- STRUCTURE PLACEMENT STATE ---
   const [blocksToPlace, setBlocksToPlace] = useState<number>(0);
   const [placingBlockType, setPlacingBlockType] = useState<BlockType | null>(null);
 
@@ -58,19 +58,15 @@ function App() {
     }
   });
 
-  // Ref to access latest state inside intervals/timeouts without triggering re-renders
   const gameStateRef = useRef(gameState);
 
-  // Update ref whenever state changes
   useEffect(() => {
       gameStateRef.current = gameState;
   }, [gameState]);
 
-  // Init Audio & Check Save
   useEffect(() => {
       waterAudioRef.current = new Audio(WATER_SOUND_URL);
       
-      // Check for save game
       if (StorageService.hasSaveGame()) {
           setHasSaveGame(true);
       }
@@ -84,7 +80,6 @@ function App() {
     }
   }, []);
 
-  // Periodic Snapshot Logging
   useEffect(() => {
     if (!isPlaying) return;
     const interval = setInterval(() => {
@@ -99,11 +94,10 @@ function App() {
                 score: globalStats.globalScore 
             }
         );
-    }, 60000); // Every minute
+    }, 60000); 
     return () => clearInterval(interval);
   }, [isPlaying, gameState.entities.length, gameState.player.points, globalStats.globalScore]);
 
-  // --- AUTO-SAVE SYSTEM ---
   useEffect(() => {
       if (!isPlaying) return;
 
@@ -122,20 +116,64 @@ function App() {
       return () => clearInterval(interval);
   }, [isPlaying]);
 
-  // --- CRITICAL BUG FIX: MONITOR TARGET AVAILABILITY ---
-  // If user is targeting recharge, but all lands disappear, cancel the mode.
   useEffect(() => {
       if (isTargetingRecharge) {
           const hasLands = gameState.entities.some(e => e.type === EntityType.LAND);
           if (!hasLands) {
               setIsTargetingRecharge(false);
-              setTargetLostTrigger(prev => prev + 1); // Notify UI
+              setTargetLostTrigger(prev => prev + 1); 
               Logger.log(EventType.SYSTEM_ALERT, EventCategory.SYSTEM, EventSeverity.WARNING, { message: 'Recharge Mode Cancelled: No Nodes Available' });
           }
       }
   }, [gameState.entities, isTargetingRecharge]);
 
-  // --- LEVEL UP SYSTEM ---
+  // --- GHOST SERVER SPAWNER ---
+  useEffect(() => {
+      if (!isPlaying) return;
+      if (gameState.level < GAME_CONFIG.GHOST_SYSTEM.START_LEVEL) return;
+
+      const scheduleSpawn = () => {
+          // Calculate dynamic delay based on population
+          const currentEntities = gameStateRef.current.entities;
+          const activeBotCount = currentEntities.filter(e => e.type === EntityType.PERSON && e.attributes?.estado !== 'muerto').length;
+          
+          // Speed up spawn by reducing delay based on bot count
+          const reduction = activeBotCount * GAME_CONFIG.GHOST_SYSTEM.DYNAMIC.REDUCTION_MS_PER_BOT;
+          
+          const minBase = GAME_CONFIG.GHOST_SYSTEM.MIN_INTERVAL_MS;
+          const maxBase = GAME_CONFIG.GHOST_SYSTEM.MAX_INTERVAL_MS;
+          const randomBase = Math.floor(Math.random() * (maxBase - minBase + 1)) + minBase;
+          
+          // Apply reduction but enforce hard minimum cap
+          const delay = Math.max(GAME_CONFIG.GHOST_SYSTEM.DYNAMIC.MIN_HARD_CAP_MS, randomBase - reduction);
+
+          const timeoutId = setTimeout(() => {
+              // Logic inside timeout uses current ref to avoid stale state in closure
+              const latestEntities = gameStateRef.current.entities;
+              const ghostCount = latestEntities.filter(e => e.type === EntityType.LAND && e.landAttributes?.isGhost).length;
+
+              if (ghostCount < GAME_CONFIG.GHOST_SYSTEM.MAX_CONCURRENT) {
+                  const ghostNode = createGhostNode();
+                  setGameState(prev => ({
+                      ...prev,
+                      entities: [...prev.entities, ghostNode]
+                  }));
+                  setGhostDetectedTrigger(prev => prev + 1);
+              }
+
+              // Schedule next
+              scheduleSpawn();
+          }, delay);
+
+          return timeoutId;
+      };
+
+      const timerId = scheduleSpawn();
+
+      return () => clearTimeout(timerId);
+  }, [isPlaying, gameState.level]);
+
+
   useEffect(() => {
       if (!isPlaying) return;
       
@@ -145,12 +183,10 @@ function App() {
       
       let nextLevel = currentLevel;
 
-      // Check Level 3
       if (currentLevel < 3) {
           if (crypto > GAME_CONFIG.LEVELS.LVL3.MIN_CRYPTO || energy > GAME_CONFIG.LEVELS.LVL3.MIN_ENERGY) {
               nextLevel = 3;
           } 
-          // Check Level 2
           else if (currentLevel < 2) {
               if (crypto > GAME_CONFIG.LEVELS.LVL2.MIN_CRYPTO || energy > GAME_CONFIG.LEVELS.LVL2.MIN_ENERGY) {
                   nextLevel = 2;
@@ -162,12 +198,11 @@ function App() {
           setGameState(prev => ({ ...prev, level: nextLevel }));
           setShowLevelBanner(`NIVEL ${nextLevel} ALCANZADO`);
           
-          // Play sound or effect could go here
           Logger.log(EventType.SYSTEM_ALERT, EventCategory.SYSTEM, EventSeverity.INFO, { message: `LEVEL UP: ${nextLevel}` });
           
           setTimeout(() => {
               setShowLevelBanner(null);
-          }, 3000); // Show banner for 3 seconds
+          }, 3000); 
       }
 
   }, [globalStats.globalScore, gameState.player.points, isPlaying, gameState.level, gameState.player.stats.cryptoSpent]);
@@ -222,19 +257,16 @@ function App() {
   }, [gameState.entities, selectedEntity]);
 
   const startGame = (name: string, avatar: string) => {
-    // Force Audio Playback immediately on user interaction
-    // Level 1 logic
     AudioManager.playLevel(1, true);
 
     setIsPlaying(true);
-    // Initialize with Wallet Entity
     const walletEntity = createWalletEntity();
     
     setGameState(prev => ({
       ...prev,
       isPlaying: true,
-      entities: [walletEntity], // Start with Wallet
-      level: 1, // Start Level 1
+      entities: [walletEntity], 
+      level: 1, 
       player: { 
           ...prev.player, 
           name, 
@@ -250,37 +282,32 @@ function App() {
   const handleContinueGame = () => {
       const loadedState = StorageService.loadGame();
       if (loadedState) {
-          // Resume Audio for saved level
           const savedLevel = loadedState.level || 1;
           AudioManager.playLevel(savedLevel, true);
 
           setGameState({
               ...loadedState,
-              isPlaying: true, // Force playing state
-              isWatering: false, // Reset transient UI states
+              isPlaying: true, 
+              isWatering: false, 
               level: savedLevel,
               player: {
                   ...loadedState.player,
                   stats: {
                       ...loadedState.player.stats,
-                      cryptoSpent: loadedState.player.stats.cryptoSpent || 0 // Ensure backward compatibility
+                      cryptoSpent: loadedState.player.stats.cryptoSpent || 0 
                   }
               }
           });
           setIsPlaying(true);
           Logger.log(EventType.SYSTEM_ALERT, EventCategory.SYSTEM, EventSeverity.INFO, { message: 'Session Restored from Backup' });
       } else {
-          // Fallback if load fails
           alert("Error: Save file corrupted or missing.");
           setHasSaveGame(false);
       }
   };
 
   const handleExitGame = () => {
-      // Save before exiting
       StorageService.saveGame(gameStateRef.current);
-      
-      // Stop Music
       AudioManager.stop();
 
       setIsPlaying(false);
@@ -301,20 +328,18 @@ function App() {
           }
         }
       });
-      setHasSaveGame(true); // Since we just saved
+      setHasSaveGame(true); 
       Logger.log(EventType.SYSTEM_ALERT, EventCategory.SYSTEM, EventSeverity.WARNING, { message: 'Session Terminated & Saved' });
   };
 
   const handleRestartGame = () => {
       const walletEntity = createWalletEntity();
-      
-      // Restart Audio Level 1
       AudioManager.playLevel(1, true);
 
       setGameState(prev => ({
         ...prev,
         isWatering: false,
-        entities: [walletEntity], // Reset entities but keep wallet
+        entities: [walletEntity], 
         level: 1,
         player: {
           ...prev.player,
@@ -361,17 +386,14 @@ function App() {
           })
       }));
 
-      // Trigger Audio
       if (waterAudioRef.current) {
         waterAudioRef.current.currentTime = 0;
         waterAudioRef.current.play().catch(e => console.log("Audio play failed", e));
       }
 
-      // Visuals & Logs
       setRechargingNodeId(nodeId);
       Logger.log(EventType.LAND_WATERED, EventCategory.ECONOMY, EventSeverity.INFO, { action: 'NODE_RECHARGE', target: nodeId });
 
-      // Reset State
       setTimeout(() => {
           setRechargingNodeId(null);
       }, 3000);
@@ -381,11 +403,9 @@ function App() {
 
   const handleAction = (actionType: string, payload?: any) => {
     
-    // --- BUY STRUCTURES (BLOCKS) ACTION ---
     if (actionType === 'BUY_STRUCTURE') {
         const { type, quantity, totalCost } = payload;
         
-        // Deduct Crypto
         setGameState(prev => ({
             ...prev,
             player: {
@@ -397,7 +417,6 @@ function App() {
             }
         }));
 
-        // Set Build Mode State
         setBlocksToPlace(quantity);
         setPlacingBlockType(type);
         
@@ -410,18 +429,16 @@ function App() {
         return;
     }
 
-    // --- EXCHANGE CRYPTO ACTION ---
     if (actionType === 'EXCHANGE_CRYPTO') {
-        const EXCHANGE_RATE = 10; // 10 Crypto = 1 Energy
+        const EXCHANGE_RATE = 10; 
         const currentGlobalScore = globalStats.globalScore;
         const alreadySpent = gameState.player.stats.cryptoSpent || 0;
         const availableCrypto = Math.max(0, currentGlobalScore - alreadySpent);
 
-        // Payload should contain amount now
         const amountToExchange = payload?.amount || 0;
 
         if (amountToExchange <= 0) return;
-        if (amountToExchange > availableCrypto) return; // Validation
+        if (amountToExchange > availableCrypto) return; 
 
         const energyGain = Math.floor(amountToExchange / EXCHANGE_RATE);
         const cryptoCost = energyGain * EXCHANGE_RATE;
@@ -458,7 +475,7 @@ function App() {
 
                     return {
                         ...e,
-                        targetPosition: undefined, // Reset target so physics stops interpolating
+                        targetPosition: undefined, 
                         velocity: { x: 0, y: 0 },
                         attributes: {
                             ...e.attributes,
@@ -480,7 +497,7 @@ function App() {
 
     if (actionType === 'REVIVE_ENTITY') {
         const REVIVE_COST = 10;
-        if (gameState.player.points < REVIVE_COST) return; // UI handles toast usually, but logic safety check
+        if (gameState.player.points < REVIVE_COST) return; 
 
         setGameState(prev => ({
             ...prev,
@@ -497,7 +514,7 @@ function App() {
                         attributes: {
                             ...e.attributes,
                             estado: 'ocioso' as const,
-                            energia: 50, // Revive with 50% energy
+                            energia: 50, 
                             deathTimestamp: undefined,
                             zeroEnergySince: undefined
                         }
@@ -516,7 +533,6 @@ function App() {
         return;
     }
     
-    // NEW: Handle Biobot Creation Request (Enter Placement Mode)
     if (actionType === 'CREATE_PERSON') {
         setPendingPersonAttributes(payload as EntityAttributes);
         return;
@@ -540,11 +556,9 @@ function App() {
             return;
         } 
         
-        // Enter Recharge Targeting Mode
         setIsTargetingRecharge(true);
         return;
     } else {
-        // Fallback deduction for generic actions (like Work)
         setGameState(prev => ({
             ...prev,
             player: { 
@@ -556,16 +570,13 @@ function App() {
     }
 
     switch (actionType) {
-        // CREATE_PERSON removed from here, moved to handlePersonPlacement
         case 'CREATE_WORK':
             Logger.log(EventType.USER_ACTION, EventCategory.USER, EventSeverity.INFO, { action: 'WORK_ORDER' });
-            // Use configurable duration from GAME_CONFIG
             const workEndTime = Date.now() + GAME_CONFIG.BIOBOT.WORK_DURATION_MS; 
             
             setGameState(prev => ({
                 ...prev,
                 entities: prev.entities.map(e => {
-                    // FIX: Ensure dead bots do not work
                     if (e.attributes && e.attributes.estado !== 'muerto') {
                         return {
                              ...e,
@@ -580,7 +591,6 @@ function App() {
   };
 
   const handleLandPlacement = (position: Vector2) => {
-    // 1. Check for Block Placement First
     if (blocksToPlace > 0 && placingBlockType) {
         const newBlock = createBlockEntity(placingBlockType, position);
         setGameState(prev => ({
@@ -596,7 +606,6 @@ function App() {
         return;
     }
 
-    // Determine which type of placement we are doing based on state
     if (pendingPersonAttributes) {
         handlePersonPlacement(position);
         return;
@@ -656,59 +665,64 @@ function App() {
     }));
   };
   
-  // Calculate Crypto Stats for passing to components
   const availableCrypto = Math.max(0, globalStats.globalScore - (gameState.player.stats.cryptoSpent || 0));
 
   return (
     <div className="w-full h-screen overflow-hidden font-sans">
       <MusicPlayer level={gameState.level} />
       
-      {/* PWA INSTALL BUTTON (Separate from HUD) */}
       <InstallPWA />
 
-      {!isPlaying ? (
-        <StartScreen 
-            onStart={startGame} 
-            hasSaveGame={hasSaveGame}
-            onContinue={handleContinueGame}
-        />
+      {/* --- LOADING SCREEN PHASE --- */}
+      {isLoading ? (
+          <LoadingScreen onComplete={() => setIsLoading(false)} />
       ) : (
-        <div className="relative w-full h-full animate-fadeIn">
-          <WorldCanvas 
-            entities={gameState.entities} 
-            onEntityClick={setSelectedEntity}
-            isWatering={false} 
-            isPlacingLand={isPlacingLand}
-            isPlacingPerson={!!pendingPersonAttributes}
-            isTargetingRecharge={isTargetingRecharge} 
-            rechargingNodeId={rechargingNodeId} 
-            onLandPlace={handleLandPlacement} 
-            onEntityDrag={handleEntityDrag}
-            onNodeRecharge={handleSingleNodeRecharge} 
-            walletStats={{ energy: gameState.player.points, crypto: availableCrypto }} 
-            blocksToPlace={blocksToPlace} 
-            level={gameState.level} // NEW: Pass Level
-          />
-          <GameInterface 
-            player={gameState.player} 
-            entities={gameState.entities}
-            onAction={handleAction} 
-            selectedEntity={selectedEntity}
-            onCloseSelection={() => setSelectedEntity(null)}
-            wastedManaTrigger={wastedManaTrigger}
-            targetLostTrigger={targetLostTrigger} 
-            isPlacingLand={isPlacingLand}
-            isPlacingPerson={!!pendingPersonAttributes}
-            isTargetingRecharge={isTargetingRecharge}
-            onBuyMana={handleBuyMana}
-            globalStats={globalStats}
-            onExit={handleExitGame}
-            onRestart={handleRestartGame}
-            blocksToPlace={blocksToPlace} 
-            level={gameState.level} // NEW: Pass Level
-            showLevelBanner={showLevelBanner} // NEW: Pass Banner State
-          />
-        </div>
+          /* --- MAIN GAME PHASE --- */
+          !isPlaying ? (
+            <StartScreen 
+                onStart={startGame} 
+                hasSaveGame={hasSaveGame}
+                onContinue={handleContinueGame}
+            />
+          ) : (
+            <div className="relative w-full h-full animate-fadeIn">
+              <WorldCanvas 
+                entities={gameState.entities} 
+                onEntityClick={setSelectedEntity}
+                isWatering={false} 
+                isPlacingLand={isPlacingLand}
+                isPlacingPerson={!!pendingPersonAttributes}
+                isTargetingRecharge={isTargetingRecharge} 
+                rechargingNodeId={rechargingNodeId} 
+                onLandPlace={handleLandPlacement} 
+                onEntityDrag={handleEntityDrag}
+                onNodeRecharge={handleSingleNodeRecharge} 
+                walletStats={{ energy: gameState.player.points, crypto: availableCrypto }} 
+                blocksToPlace={blocksToPlace} 
+                level={gameState.level} 
+              />
+              <GameInterface 
+                player={gameState.player} 
+                entities={gameState.entities}
+                onAction={handleAction} 
+                selectedEntity={selectedEntity}
+                onCloseSelection={() => setSelectedEntity(null)}
+                wastedManaTrigger={wastedManaTrigger}
+                targetLostTrigger={targetLostTrigger} 
+                isPlacingLand={isPlacingLand}
+                isPlacingPerson={!!pendingPersonAttributes}
+                isTargetingRecharge={isTargetingRecharge}
+                onBuyMana={handleBuyMana}
+                globalStats={globalStats}
+                onExit={handleExitGame}
+                onRestart={handleRestartGame}
+                blocksToPlace={blocksToPlace} 
+                level={gameState.level} 
+                showLevelBanner={showLevelBanner} 
+                ghostDetectedTrigger={ghostDetectedTrigger}
+              />
+            </div>
+          )
       )}
     </div>
   );

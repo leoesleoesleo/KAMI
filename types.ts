@@ -24,6 +24,7 @@ export interface Vector2 {
 export interface LandAttributes {
   resourceLevel: number; // 0 - 100
   emptySince?: number; // Timestamp when resource became 0
+  isGhost?: boolean; // Flag for auto-generated ghost servers
 }
 
 export interface BlockAttributes {

@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { PlayerState, GameEntity, Gender, INITIAL_POINTS, ACTION_COST, EntityType, BlockType } from '../types';
-import { Bot, Database, Zap, Pickaxe, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle, HardDrive, LogOut, RotateCcw, HeartPulse, ArrowRightLeft, Wallet, Hammer, Shield, Lock, Box, ChevronUp } from 'lucide-react';
+import { Bot, Database, Zap, Pickaxe, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle, HardDrive, LogOut, RotateCcw, HeartPulse, ArrowRightLeft, Wallet, Hammer, Shield, Lock, Box, ChevronUp, Ghost } from 'lucide-react';
 import { createPersonJSON } from '../services/gameService';
 import { GAME_CONFIG } from '../gameConfig';
 import { LiveConsole } from './LiveConsole';
@@ -28,6 +28,7 @@ interface GameInterfaceProps {
   blocksToPlace?: number; // New prop for Build Mode
   level: number; // New Prop
   showLevelBanner: string | null; // New Prop for Level Up animation
+  ghostDetectedTrigger: number; // New Prop for Ghost Alerts
 }
 
 interface ChatMessage {
@@ -52,7 +53,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     onRestart,
     blocksToPlace,
     level,
-    showLevelBanner
+    showLevelBanner,
+    ghostDetectedTrigger
 }) => {
   const [isCreationModalOpen, setModalOpen] = useState(false);
   const [creationGender, setCreationGender] = useState<Gender>(Gender.MALE);
@@ -67,6 +69,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const [showReviveToast, setShowReviveToast] = useState(false);
   const [showExchangeToast, setShowExchangeToast] = useState(false);
   const [showTargetLostToast, setShowTargetLostToast] = useState(false);
+  const [showGhostToast, setShowGhostToast] = useState(false);
 
   // Tools/Build Modal
   const [isToolsModalOpen, setToolsModalOpen] = useState(false);
@@ -108,6 +111,14 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
           setTimeout(() => setShowTargetLostToast(false), 3000);
       }
   }, [targetLostTrigger]);
+
+  // Handle Ghost Detection Trigger
+  useEffect(() => {
+      if (ghostDetectedTrigger > 0) {
+          setShowGhostToast(true);
+          setTimeout(() => setShowGhostToast(false), 4000);
+      }
+  }, [ghostDetectedTrigger]);
 
   useEffect(() => {
       if (selectedEntity?.attributes?.workEndTime) {
@@ -353,6 +364,17 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-red-600/90 backdrop-blur text-white px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-[0_0_20px_rgba(220,38,38,0.5)] animate-bounce flex items-center gap-3 z-[60] pointer-events-auto border border-red-400 w-max max-w-[90vw] whitespace-normal text-center">
             <AlertTriangle size={20} className="shrink-0" />
             <span className="font-mono font-bold text-xs md:text-sm">OBJETIVO PERDIDO: OPERACIÓN CANCELADA</span>
+        </div>
+      )}
+
+      {/* Ghost Detected Toast */}
+      {showGhostToast && (
+        <div className="fixed top-32 left-1/2 -translate-x-1/2 bg-purple-900/95 backdrop-blur text-white px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-[0_0_40px_rgba(168,85,247,0.7)] animate-bounce flex items-center gap-3 z-[65] pointer-events-auto border border-purple-500 w-max max-w-[90vw] whitespace-normal text-center">
+            <Ghost size={24} className="shrink-0 animate-pulse text-purple-300" />
+            <div className="flex flex-col items-start">
+                <span className="font-tech font-bold text-xs md:text-sm text-purple-300">ANOMALÍA DETECTADA</span>
+                <span className="font-mono text-xs">SERVIDOR FANTASMA MATERIALIZADO</span>
+            </div>
         </div>
       )}
 
@@ -729,7 +751,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                         </div>
                         <div>
                             <h3 className="font-tech font-bold text-lg md:text-xl text-white tracking-wide">
-                                {selectedEntity.type === EntityType.LAND ? 'DATA NODE' : selectedEntity.type === EntityType.BLOCK ? 'STRUCTURE' : selectedEntity.attributes?.nombre}
+                                {selectedEntity.type === EntityType.LAND ? (selectedEntity.landAttributes?.isGhost ? 'GHOST NODE' : 'DATA NODE') : selectedEntity.type === EntityType.BLOCK ? 'STRUCTURE' : selectedEntity.attributes?.nombre}
                             </h3>
                             <p className="text-[10px] md:text-xs text-tech-cyan font-mono uppercase tracking-widest">
                                 {selectedEntity.type === EntityType.LAND ? `ID: ${selectedEntity.id.slice(0,6)}` : selectedEntity.type === EntityType.BLOCK ? selectedEntity.blockAttributes?.type : `${selectedEntity.attributes?.sexo} • v.${selectedEntity.attributes?.edad}.0`}

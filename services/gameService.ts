@@ -154,6 +154,37 @@ export const createLandEntity = (position: Vector2): GameEntity => {
   return entity;
 };
 
+export const createGhostNode = (): GameEntity => {
+    // Generate completely random position in the world
+    const x = Math.random() * (WORLD_SIZE - 200) + 100;
+    const y = Math.random() * (WORLD_SIZE - 200) + 100;
+    
+    // Create base entity
+    const entity = createLandEntity({ x, y });
+    
+    // Assign random initial resources: Yellow (0), Pink (50), Green (100)
+    const possibleLevels = [0, GAME_CONFIG.LAND.STAGE_1_THRESHOLD, GAME_CONFIG.LAND.STAGE_2_THRESHOLD];
+    const resourceLevel = possibleLevels[Math.floor(Math.random() * possibleLevels.length)];
+    
+    if (entity.landAttributes) {
+        entity.landAttributes.resourceLevel = resourceLevel;
+        entity.landAttributes.isGhost = true;
+        // If it has resources, clear the empty timer so it doesn't decay immediately if 0
+        if (resourceLevel > 0) {
+            entity.landAttributes.emptySince = undefined;
+        }
+    }
+
+    Logger.log(
+        EventType.SYSTEM_ALERT,
+        EventCategory.SYSTEM,
+        EventSeverity.INFO,
+        { action: 'GHOST_SPAWN', resources: resourceLevel }
+    );
+
+    return entity;
+};
+
 // --- CORE LOGIC MODULES (PURE FUNCTIONS) ---
 
 export const calculateWorkPoints = (resourceLevel: number): number => {

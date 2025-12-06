@@ -59,5 +59,15 @@ export const GAME_CONFIG = {
           MIN_CRYPTO: 16000,
           MIN_ENERGY: 800
       }
+  },
+  GHOST_SYSTEM: {
+      START_LEVEL: 2,
+      MAX_CONCURRENT: 2,
+      MIN_INTERVAL_MS: 120000, // 2 minutes base min
+      MAX_INTERVAL_MS: 300000, // 5 minutes base max
+      DYNAMIC: {
+          REDUCTION_MS_PER_BOT: 5000, // Reduce wait time by 5s per active bot
+          MIN_HARD_CAP_MS: 30000      // Never spawn faster than every 30s
+      }
   }
 };
