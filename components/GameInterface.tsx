@@ -1,11 +1,12 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { PlayerState, GameEntity, Gender, INITIAL_POINTS, ACTION_COST, EntityType, BlockType } from '../types';
-import { Bot, Database, Zap, Pickaxe, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle, HardDrive, LogOut, RotateCcw, HeartPulse, ArrowRightLeft, Wallet, Hammer, Shield, Lock, Box, ChevronUp, Ghost } from 'lucide-react';
-import { createPersonJSON } from '../services/gameService';
+import { Bot, Database, Zap, Pickaxe, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle, HardDrive, LogOut, RotateCcw, HeartPulse, ArrowRightLeft, Wallet, Hammer, Shield, Lock, Box, ChevronUp, Ghost, Pause, Play, Settings, Save } from 'lucide-react';
+import { createPersonJSON, getRandomGender } from '../services/gameService';
 import { GAME_CONFIG } from '../gameConfig';
 import { LiveConsole } from './LiveConsole';
 import { Minimap } from './Minimap';
+import { StorageService } from '../services/storageService';
 
 interface GameInterfaceProps {
   player: PlayerState;
@@ -14,10 +15,10 @@ interface GameInterfaceProps {
   selectedEntity: GameEntity | null;
   onCloseSelection: () => void;
   wastedManaTrigger: number;
-  targetLostTrigger?: number; // New prop for auto-cancellation feedback
+  targetLostTrigger?: number; 
   isPlacingLand?: boolean;
   isPlacingPerson?: boolean;
-  isTargetingRecharge?: boolean; // New prop
+  isTargetingRecharge?: boolean; 
   onBuyMana: (amount: number) => void;
   globalStats: {
       globalScore: number;
@@ -25,10 +26,13 @@ interface GameInterfaceProps {
   };
   onExit: () => void;
   onRestart: () => void;
-  blocksToPlace?: number; // New prop for Build Mode
-  level: number; // New Prop
-  showLevelBanner: string | null; // New Prop for Level Up animation
-  ghostDetectedTrigger: number; // New Prop for Ghost Alerts
+  blocksToPlace?: number; 
+  level: number; 
+  showLevelBanner: string | null; 
+  ghostDetectedTrigger: number;
+  isPaused: boolean; 
+  togglePause: () => void;
+  onNodeRecharge: (nodeId: string) => void; 
 }
 
 interface ChatMessage {
@@ -54,7 +58,10 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     blocksToPlace,
     level,
     showLevelBanner,
-    ghostDetectedTrigger
+    ghostDetectedTrigger,
+    isPaused,
+    togglePause,
+    onNodeRecharge
 }) => {
   const [isCreationModalOpen, setModalOpen] = useState(false);
   const [creationGender, setCreationGender] = useState<Gender>(Gender.MALE);
@@ -70,11 +77,12 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const [showExchangeToast, setShowExchangeToast] = useState(false);
   const [showTargetLostToast, setShowTargetLostToast] = useState(false);
   const [showGhostToast, setShowGhostToast] = useState(false);
+  const [showSaveToast, setShowSaveToast] = useState(false);
 
   // Tools/Build Modal
   const [isToolsModalOpen, setToolsModalOpen] = useState(false);
   const [selectedBlockType, setSelectedBlockType] = useState<BlockType | null>(null);
-  const [blockQuantity, setBlockQuantity] = useState(4); // Default 4 for a square
+  const [blockQuantity, setBlockQuantity] = useState(4); 
 
   // Player Profile Modal
   const [isPlayerProfileOpen, setPlayerProfileOpen] = useState(false);
@@ -86,6 +94,9 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const [currentMessage, setCurrentMessage] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Menu State
+  const [activeMenu, setActiveMenu] = useState<'actions' | 'system' | null>(null);
+
   // Work Timer State for Selected Entity
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
@@ -96,6 +107,13 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         setChatMessages([]);
     }
   }, [selectedEntity]);
+
+  // When opening Creation Modal, set default gender based on 70/30 probability
+  useEffect(() => {
+      if (isCreationModalOpen) {
+          setCreationGender(getRandomGender());
+      }
+  }, [isCreationModalOpen]);
 
   useEffect(() => {
     if (wastedManaTrigger > 0) {
@@ -130,7 +148,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                 setTimeLeft(null);
             }
           };
-          updateTimer(); // Immediate
+          updateTimer(); 
           const interval = setInterval(updateTimer, 1000);
           return () => clearInterval(interval);
       } else {
@@ -147,26 +165,49 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     }
   };
 
+  // --- HANDLER FIX FOR PROFILE CLICK ---
+  const handleProfileClick = (e: React.MouseEvent) => {
+      e.stopPropagation(); // Prevent bubbling to background
+      setPlayerProfileOpen(true);
+      setActiveMenu(null); // Ensure side menus are closed
+  };
+
   const handleCreatePerson = () => {
     checkManaAndExecute(() => {
         const attributes = createPersonJSON(creationGender, creationName || undefined);
         onAction('CREATE_PERSON', attributes);
         setModalOpen(false);
         setCreationName('');
+        setActiveMenu(null);
     });
   };
 
-  const handleWorkProtocol = () => {
-      // Validate biobots existence AND ensure they are alive
-      const activeBots = entities.filter(e => e.type === EntityType.PERSON && e.attributes?.estado !== 'muerto');
-      
-      if (activeBots.length === 0) {
-          setShowNoBotsToast(true);
-          setTimeout(() => setShowNoBotsToast(false), 3000);
-          return; // Do NOT execute action, do NOT spend mana
+  const handleWorkProtocol = (entityId?: string) => {
+      // If we are targeting a specific bot, verify it exists and is alive
+      if (entityId) {
+          const targetBot = entities.find(e => e.id === entityId);
+          if (!targetBot || targetBot.attributes?.estado === 'muerto') {
+              setShowNoBotsToast(true);
+              setTimeout(() => setShowNoBotsToast(false), 3000);
+              return;
+          }
+      } else {
+          // Global check (deprecated for now but kept for safety)
+          const activeBots = entities.filter(e => e.type === EntityType.PERSON && e.attributes?.estado !== 'muerto');
+          if (activeBots.length === 0) {
+              setShowNoBotsToast(true);
+              setTimeout(() => setShowNoBotsToast(false), 3000);
+              return; 
+          }
       }
 
-      checkManaAndExecute(() => onAction('CREATE_WORK'));
+      checkManaAndExecute(() => {
+          onAction('CREATE_WORK', entityId);
+          // If action was triggered from selection, close modal
+          if (entityId && selectedEntity?.id === entityId) {
+              onCloseSelection();
+          }
+      });
   };
 
   const handleBuyBlocks = () => {
@@ -187,13 +228,14 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 
       onAction('BUY_STRUCTURE', { type: selectedBlockType, quantity: blockQuantity, totalCost });
       setToolsModalOpen(false);
+      setActiveMenu(null);
   };
 
   const handleRedeemCode = () => {
       if (redeemCode === '1866') {
           onBuyMana(100);
           setRedeemCode('');
-          setPlayerProfileOpen(false); // Close modal on success for clean UI
+          setPlayerProfileOpen(false); 
           setShowSuccessMana(true);
           setTimeout(() => setShowSuccessMana(false), 3000);
       } else {
@@ -208,8 +250,6 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       // Feedback
       setShowExchangeToast(true);
       setTimeout(() => setShowExchangeToast(false), 3000);
-      
-      // Do NOT close the modal, allowing user to see updated stats
   };
 
   const openChat = (e: React.MouseEvent) => {
@@ -265,7 +305,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         onAction('KILL_ENTITY', selectedEntity.id);
         setShowKillToast(true);
         setTimeout(() => setShowKillToast(false), 3000);
-        onCloseSelection(); // Close modal immediately per request
+        onCloseSelection(); 
     }
   };
   
@@ -288,32 +328,57 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       }
   };
 
+  const handleManualSave = () => {
+      setShowSaveToast(true);
+      setTimeout(() => setShowSaveToast(false), 3000);
+      setActiveMenu(null);
+  };
+
   const closeChat = (e: React.MouseEvent) => {
       e.stopPropagation();
       setChatOpen(false);
   };
 
-  // Helper to count active bots for profile
   const activeBiobotsCount = entities.filter(e => e.type === EntityType.PERSON && e.attributes?.estado !== 'muerto').length;
-  
-  // Calculate Crypto Stats (Liquid Assets)
   const availableCrypto = Math.max(0, globalStats.globalScore - (player.stats.cryptoSpent || 0));
 
-  // Calculate Exchange Options (60%, 30%, 10%)
-  // 10 Crypto = 1 Energy. We round down to nearest 10 for clean exchange.
   const calculateOption = (percentage: number) => {
       const rawAmount = availableCrypto * percentage;
       const roundedAmount = Math.floor(rawAmount / 10) * 10;
       return roundedAmount;
   };
 
-  const optionHigh = calculateOption(0.6); // 60%
-  const optionMid = calculateOption(0.3);  // 30%
-  const optionLow = calculateOption(0.1);  // 10%
+  const optionHigh = calculateOption(0.6); 
+  const optionMid = calculateOption(0.3);  
+  const optionLow = calculateOption(0.1);  
 
   return (
     <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 md:p-6 z-20 font-sans">
       
+      {/* INVISIBLE BACKDROP FOR CLOSING MENUS */}
+      {activeMenu && (
+          <div 
+            className="fixed inset-0 z-25 bg-transparent pointer-events-auto"
+            onClick={() => setActiveMenu(null)}
+          />
+      )}
+
+      {/* PAUSE OVERLAY */}
+      {isPaused && (
+          <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm flex items-center justify-center pointer-events-auto">
+              <div className="bg-black/80 border-2 border-yellow-500/50 p-8 rounded-2xl flex flex-col items-center gap-4 shadow-2xl animate-pulse">
+                  <Pause size={48} className="text-yellow-500" />
+                  <h2 className="text-3xl font-tech font-bold text-white tracking-widest">SIMULACIÓN PAUSADA</h2>
+                  <button 
+                    onClick={togglePause}
+                    className="mt-4 px-8 py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-lg font-mono tracking-wider transition-all"
+                  >
+                      REANUDAR SISTEMA
+                  </button>
+              </div>
+          </div>
+      )}
+
       {/* LEVEL UP BANNER ANIMATION */}
       {showLevelBanner && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
@@ -394,6 +459,14 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         </div>
       )}
 
+      {/* Toast Notification for Save */}
+      {showSaveToast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-blue-500/90 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto border border-blue-300 w-max max-w-[90vw] whitespace-normal text-center">
+            <Save size={18} className="shrink-0" />
+            <span className="font-mono font-bold text-xs md:text-sm">PROGRESO GUARDADO</span>
+        </div>
+      )}
+
       {/* Toast Notification for Success Mana Purchase */}
       {showSuccessMana && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-neon-green/20 backdrop-blur-md text-neon-green px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto border border-neon-green w-max max-w-[90vw] whitespace-normal text-center">
@@ -435,11 +508,12 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       )}
 
       {/* Top Bar Wrapper - Responsive */}
-      <div className="flex flex-col md:flex-row items-center md:items-start justify-between pointer-events-auto w-full gap-3 md:gap-0">
+      {/* INCREASED Z-INDEX to ensure it's above the backdrop layer */}
+      <div className="flex flex-col md:flex-row items-center md:items-start justify-between pointer-events-auto w-full gap-3 md:gap-0 relative z-30">
         
         {/* Left: Player Profile & Energy */}
         <div 
-            onClick={() => setPlayerProfileOpen(true)}
+            onClick={handleProfileClick}
             className="bg-panel-dark backdrop-blur-md rounded-xl shadow-lg p-2 md:p-3 flex items-center gap-3 md:gap-4 border border-tech-cyan/30 cursor-pointer hover:bg-slate-800 transition-colors w-full md:w-auto justify-center md:justify-start group"
         >
             <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg overflow-hidden border border-tech-cyan shrink-0 relative">
@@ -573,7 +647,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 
       {/* Player Profile Modal */}
       {isPlayerProfileOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto p-4">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto p-4">
               <div className="bg-slate-900 rounded-2xl p-6 md:p-8 w-full max-w-[420px] shadow-[0_0_40px_rgba(6,182,212,0.15)] border border-tech-cyan/50 relative overflow-y-auto max-h-[90vh]">
                   <button onClick={() => setPlayerProfileOpen(false)} className="absolute top-4 right-4 text-gray-500 hover:text-alert-red transition-colors">
                       <X size={24} />
@@ -800,39 +874,70 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                                 <span className="text-gray-500">Recursos:</span>
                                 <span className="font-semibold text-neon-green">{Math.round(selectedEntity.landAttributes.resourceLevel)}%</span>
                             </div>
+                            
+                            {/* RECHARGE BUTTON IN NODE PROPERTIES */}
+                            <button
+                                onClick={() => {
+                                    onNodeRecharge(selectedEntity.id);
+                                    onCloseSelection(); // Auto-close modal
+                                }}
+                                disabled={isPlacingLand || isPlacingPerson || isTargetingRecharge}
+                                className="w-full bg-blue-600/20 border border-blue-500 text-blue-400 hover:bg-blue-500 hover:text-white transition-all py-3 rounded-lg flex items-center justify-center gap-2 font-bold font-tech tracking-wider text-sm shadow-[0_0_15px_rgba(59,130,246,0.3)] mt-2"
+                            >
+                                <Zap size={18} />
+                                RECARGAR ENERGÍA (-{ACTION_COST})
+                            </button>
                          </div>
                     )}
 
                     {selectedEntity.type === EntityType.PERSON && selectedEntity.attributes && (
-                        <div className="flex gap-2">
-                            <button 
-                                onClick={openChat}
-                                disabled={selectedEntity.attributes.estado === 'muerto'}
-                                className="flex-1 bg-slate-800 border border-slate-600 text-gray-300 py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-tech-cyan/10 hover:border-tech-cyan hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm font-mono"
-                            >
-                                <MessageCircle size={16} />
-                                <span>CONSOLA</span>
-                            </button>
-
-                            {GAME_CONFIG.DEATH.ENABLE_MANUAL_KILL && selectedEntity.attributes.estado !== 'muerto' && (
+                        <div className="flex flex-col gap-2">
+                            {/* ACTIONS ROW */}
+                            <div className="flex gap-2">
                                 <button 
-                                    onClick={handleKill}
-                                    className="w-10 bg-alert-red/10 border border-alert-red/50 text-alert-red rounded-lg flex items-center justify-center hover:bg-alert-red hover:text-white transition-all"
-                                    title="Terminar Proceso"
+                                    onClick={openChat}
+                                    disabled={selectedEntity.attributes.estado === 'muerto'}
+                                    className="flex-1 bg-slate-800 border border-slate-600 text-gray-300 py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-tech-cyan/10 hover:border-tech-cyan hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm font-mono font-bold"
                                 >
-                                    <Skull size={18} />
+                                    <MessageCircle size={16} />
+                                    <span>CONSOLA</span>
                                 </button>
-                            )}
-                            
-                            {/* REVIVE BUTTON - Only visible when dead */}
-                            {selectedEntity.attributes.estado === 'muerto' && (
-                                <button 
-                                    onClick={handleRevive}
-                                    className="flex-1 bg-neon-green/10 border border-neon-green/50 text-neon-green py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-neon-green hover:text-black transition-all text-xs md:text-sm font-mono animate-pulse"
-                                    title="Reactivar Unidad (-10 Energía)"
+
+                                {GAME_CONFIG.DEATH.ENABLE_MANUAL_KILL && selectedEntity.attributes.estado !== 'muerto' && (
+                                    <button 
+                                        onClick={handleKill}
+                                        className="w-12 bg-alert-red/10 border border-alert-red/50 text-alert-red rounded-lg flex items-center justify-center hover:bg-alert-red hover:text-white transition-all"
+                                        title="Terminar Proceso"
+                                    >
+                                        <Skull size={20} />
+                                    </button>
+                                )}
+                                
+                                {/* REVIVE BUTTON - Only visible when dead */}
+                                {selectedEntity.attributes.estado === 'muerto' && (
+                                    <button 
+                                        onClick={handleRevive}
+                                        className="flex-1 bg-neon-green/10 border border-neon-green/50 text-neon-green py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-neon-green hover:text-black transition-all text-xs md:text-sm font-mono animate-pulse"
+                                        title="Reactivar Unidad (-10 Energía)"
+                                    >
+                                        <HeartPulse size={16} />
+                                        <span>REVIVIR</span>
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* MINING BUTTON - Prominent */}
+                            {selectedEntity.attributes.estado !== 'muerto' && (
+                                <button
+                                    onClick={() => {
+                                        handleWorkProtocol(selectedEntity.id);
+                                        onCloseSelection(); // Auto-close modal
+                                    }}
+                                    disabled={isPlacingLand || isPlacingPerson || isTargetingRecharge}
+                                    className="w-full bg-orange-600/20 border border-orange-500 text-orange-400 hover:bg-orange-500 hover:text-white transition-all py-3 rounded-lg flex items-center justify-center gap-2 font-bold font-tech tracking-wider text-sm shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.6)]"
                                 >
-                                    <HeartPulse size={16} />
-                                    <span>REVIVIR</span>
+                                    <Pickaxe size={18} />
+                                    MINAR
                                 </button>
                             )}
                         </div>
@@ -888,94 +993,112 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         </div>
       )}
 
-      {/* LEFT Vertical Toolbar (HUD) - REDESIGNED */}
-      <div className="pointer-events-auto absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-30">
-          <div className="flex flex-col gap-3 bg-slate-900/80 backdrop-blur-xl p-2 rounded-xl border border-white/10 shadow-2xl">
-            {/* Create Person Button - Bot Icon */}
-            <div className="relative group shrink-0">
-                <button 
-                    onClick={() => checkManaAndExecute(() => setModalOpen(true))}
-                    disabled={isPlacingLand || isPlacingPerson || isTargetingRecharge}
-                    className={`w-10 h-10 md:w-11 md:h-11 rounded-lg border flex items-center justify-center transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed ${isPlacingPerson ? 'bg-tech-cyan text-black border-white animate-pulse shadow-[0_0_20px_rgba(6,182,212,0.8)]' : 'bg-slate-800 border-tech-cyan/40 text-tech-cyan hover:bg-tech-cyan hover:text-black hover:shadow-[0_0_15px_rgba(6,182,212,0.4)]'}`}
-                    title="Génesis BioBot"
-                >
-                    <Bot size={20} />
-                </button>
-            </div>
+      {/* NEW: Minecraft-Inspired Action Dock (Left Side) */}
+      <div className="pointer-events-auto absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-1 z-30"> 
+          
+          {/* 1. BIOBOT COMMAND CENTER */}
+          <div className="relative group">
+              <button 
+                onClick={() => setActiveMenu(activeMenu === 'actions' ? null : 'actions')}
+                className={`w-14 h-14 md:w-16 md:h-16 bg-slate-900 border-2 ${activeMenu === 'actions' ? 'border-tech-cyan shadow-[0_0_20px_rgba(6,182,212,0.6)]' : 'border-slate-600 hover:border-white'} rounded-xl flex items-center justify-center transition-all duration-200 transform hover:scale-105 active:scale-95`}
+                title="Comandos BioBot"
+              >
+                  <Bot size={32} className={`${activeMenu === 'actions' ? 'text-tech-cyan' : 'text-gray-300'}`} />
+                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-tech-cyan rounded-full border-2 border-slate-900" />
+              </button>
 
-            {/* Create Land - Database Icon */}
-            <div className="relative group shrink-0">
-                <button 
-                    onClick={() => checkManaAndExecute(() => onAction('CREATE_LAND'))}
-                    disabled={isPlacingPerson || isTargetingRecharge}
-                    className={`w-10 h-10 md:w-11 md:h-11 rounded-lg border flex items-center justify-center transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed ${isPlacingLand ? 'bg-neon-green text-black border-white animate-pulse shadow-[0_0_20px_rgba(34,197,94,0.8)]' : 'bg-slate-800 border-neon-green/40 text-neon-green hover:bg-neon-green hover:text-black hover:shadow-[0_0_15px_rgba(34,197,94,0.4)]'}`}
-                    title="Crear Nodo de Datos"
-                >
-                    <Database size={20} />
-                </button>
-            </div>
+              {/* Sub-menu (Pop-out) */}
+              {activeMenu === 'actions' && (
+                  <div className="absolute left-full top-0 ml-4 bg-slate-900/90 backdrop-blur-xl p-3 rounded-xl border border-tech-cyan/30 shadow-2xl flex flex-col gap-2 animate-pop-in origin-left">
+                      <div className="text-[10px] text-gray-400 font-mono font-bold uppercase mb-1 border-b border-gray-700 pb-1">Acciones</div>
+                      
+                      {/* Create Bot */}
+                      <button 
+                        onClick={handleCreatePerson}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-40"
+                      >
+                          <div className="p-1.5 bg-tech-cyan/20 rounded text-tech-cyan"><Cpu size={16}/></div>
+                          <span className="text-xs font-bold">Crear BioBot</span>
+                      </button>
 
-            {/* Rain (Energy Charge) - Zap Icon */}
-            <div className="relative group shrink-0">
-                <button 
-                    onClick={() => checkManaAndExecute(() => onAction('CREATE_RAIN'))}
-                    disabled={isPlacingLand || isPlacingPerson}
-                    className={`w-10 h-10 md:w-11 md:h-11 rounded-lg border flex items-center justify-center transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed ${isTargetingRecharge ? 'bg-blue-500 text-white border-white animate-pulse shadow-[0_0_20px_rgba(59,130,246,0.8)]' : 'bg-slate-800 border-blue-500/40 text-blue-400 hover:bg-blue-500 hover:text-white hover:shadow-[0_0_15px_rgba(59,130,246,0.4)]'}`}
-                    title="Carga Energética"
-                >
-                    <Zap size={20} />
-                </button>
-            </div>
+                      {/* Create Node */}
+                      <button 
+                        onClick={() => checkManaAndExecute(() => { onAction('CREATE_LAND'); setActiveMenu(null); })}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-40"
+                      >
+                          <div className="p-1.5 bg-neon-green/20 rounded text-neon-green"><Database size={16}/></div>
+                          <span className="text-xs font-bold">Nuevo Nodo</span>
+                      </button>
 
-            {/* Work (Mine) - Pickaxe Icon */}
-            <div className="relative group shrink-0">
-                <button 
-                    onClick={handleWorkProtocol}
-                    disabled={isPlacingLand || isPlacingPerson || isTargetingRecharge}
-                    className="w-10 h-10 md:w-11 md:h-11 rounded-lg bg-slate-800 border border-orange-500/40 flex items-center justify-center text-orange-500 hover:bg-orange-500 hover:text-white transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-[0_0_15px_rgba(249,115,22,0.4)]"
-                    title="Minar Criptomonedas"
-                >
-                    <Pickaxe size={20} />
-                </button>
-            </div>
+                      {/* Tools */}
+                      <button 
+                        onClick={() => { setToolsModalOpen(true); setActiveMenu(null); }}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-40"
+                      >
+                          <div className="p-1.5 bg-gray-600/30 rounded text-gray-300"><Hammer size={16}/></div>
+                          <span className="text-xs font-bold">Herramientas</span>
+                      </button>
+                  </div>
+              )}
+          </div>
 
-            {/* NEW: Tools / Build Menu */}
-            <div className="relative group shrink-0">
-                <button 
-                    onClick={() => setToolsModalOpen(true)}
-                    disabled={isPlacingLand || isPlacingPerson || isTargetingRecharge}
-                    className="w-10 h-10 md:w-11 md:h-11 rounded-lg bg-slate-800 border border-gray-400 flex items-center justify-center text-gray-300 hover:bg-gray-600 hover:text-white transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Herramientas y Estructuras"
-                >
-                    <Hammer size={20} />
-                </button>
-            </div>
+          {/* 2. SYSTEM CORE */}
+          <div className="relative group">
+              <button 
+                onClick={() => setActiveMenu(activeMenu === 'system' ? null : 'system')}
+                className={`w-14 h-14 md:w-16 md:h-16 bg-slate-900 border-2 ${activeMenu === 'system' ? 'border-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.6)]' : 'border-slate-600 hover:border-white'} rounded-xl flex items-center justify-center transition-all duration-200 transform hover:scale-105 active:scale-95`}
+                title="Sistema del Juego"
+              >
+                  <Settings size={32} className={`${activeMenu === 'system' ? 'text-yellow-500' : 'text-gray-300'}`} />
+                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full border-2 border-slate-900" />
+              </button>
 
-            {/* Divider */}
-            <div className="h-px bg-white/20 w-full my-1" />
+              {/* Sub-menu (Pop-out) */}
+              {activeMenu === 'system' && (
+                  <div className="absolute left-full top-0 ml-4 bg-slate-900/90 backdrop-blur-xl p-3 rounded-xl border border-yellow-500/30 shadow-2xl flex flex-col gap-2 animate-pop-in origin-left">
+                      <div className="text-[10px] text-gray-400 font-mono font-bold uppercase mb-1 border-b border-gray-700 pb-1">Sistema</div>
+                      
+                      {/* Pause */}
+                      <button 
+                        onClick={() => { togglePause(); setActiveMenu(null); }}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-40"
+                      >
+                          <div className={`p-1.5 rounded ${isPaused ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-500'}`}>
+                              {isPaused ? <Play size={16}/> : <Pause size={16}/>}
+                          </div>
+                          <span className="text-xs font-bold">{isPaused ? "Reanudar" : "Pausar"}</span>
+                      </button>
 
-             {/* System Controls: Restart */}
-             <div className="relative group shrink-0">
-                <button 
-                    onClick={onRestart}
-                    className="w-10 h-10 md:w-11 md:h-11 rounded-lg bg-slate-800 border border-yellow-500/30 flex items-center justify-center text-yellow-500 hover:bg-yellow-500 hover:text-black transition-all transform hover:scale-110"
-                    title="Reiniciar Simulación"
-                >
-                    <RotateCcw size={18} />
-                </button>
-            </div>
+                      {/* Save */}
+                      <button 
+                        onClick={handleManualSave}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-40"
+                      >
+                          <div className="p-1.5 bg-blue-500/20 rounded text-blue-400"><Save size={16}/></div>
+                          <span className="text-xs font-bold">Guardar</span>
+                      </button>
 
-             {/* System Controls: Exit */}
-             <div className="relative group shrink-0">
-                <button 
-                    onClick={onExit}
-                    className="w-10 h-10 md:w-11 md:h-11 rounded-lg bg-slate-800 border border-red-500/30 flex items-center justify-center text-red-500 hover:bg-red-600 hover:text-white transition-all transform hover:scale-110"
-                    title="Cerrar Sesión"
-                >
-                    <LogOut size={18} />
-                </button>
-            </div>
-        </div>
+                      {/* Restart */}
+                      <button 
+                        onClick={() => { onRestart(); setActiveMenu(null); }}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-40"
+                      >
+                          <div className="p-1.5 bg-orange-500/20 rounded text-orange-500"><RotateCcw size={16}/></div>
+                          <span className="text-xs font-bold">Reiniciar</span>
+                      </button>
+
+                      {/* Exit */}
+                      <button 
+                        onClick={() => { onExit(); setActiveMenu(null); }}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-red-900/30 text-red-400 transition-colors w-40 border border-red-900/50 hover:border-red-500"
+                      >
+                          <div className="p-1.5 bg-red-500/10 rounded text-red-500"><LogOut size={16}/></div>
+                          <span className="text-xs font-bold">Salir</span>
+                      </button>
+                  </div>
+              )}
+          </div>
+
       </div>
 
       {/* Creation Modal */}

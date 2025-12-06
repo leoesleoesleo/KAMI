@@ -83,6 +83,11 @@ export const createBlockEntity = (type: BlockType, position: Vector2): GameEntit
     return entity;
 };
 
+// New Helper for Weighted Gender Probability (70% ALFA, 30% BETA)
+export const getRandomGender = (): Gender => {
+    return Math.random() < 0.7 ? Gender.MALE : Gender.FEMALE;
+};
+
 export const createPersonJSON = (gender: Gender, customName?: string): EntityAttributes => {
   const nameList = gender === Gender.MALE ? NAMES_MALE : NAMES_FEMALE;
   const name = customName || nameList[Math.floor(Math.random() * nameList.length)];
@@ -101,9 +106,9 @@ export const createPersonJSON = (gender: Gender, customName?: string): EntityAtt
 };
 
 export const createPersonEntity = (attributes: EntityAttributes, position: Vector2): GameEntity => {
-  // Palette for Males: Darker Golds, Ochres, Industrial Yellows
+  // Palette for ALFA (Males): Darker Golds, Ochres, Industrial Yellows
   const MALE_YELLOWS = ["eab308", "ca8a04", "a16207", "facc15", "fbbf24"]; 
-  // Palette for Females: Light Pastels, Lemons, Creams
+  // Palette for BETA (Females): Light Pastels, Lemons, Creams
   const FEMALE_YELLOWS = ["fef08a", "fde047", "facc15", "fffbeb", "fef9c3"];
 
   const colorPalette = attributes.sexo === Gender.MALE ? MALE_YELLOWS.join(',') : FEMALE_YELLOWS.join(',');
@@ -111,6 +116,7 @@ export const createPersonEntity = (attributes: EntityAttributes, position: Vecto
   
   const avatarSeed = `${seedPrefix}${attributes.nombre}-${Math.random()}`;
   
+  // Note: 'baseColor' is supported by bottts v9 to set the main color
   const avatarUrl = `https://api.dicebear.com/9.x/bottts/svg?seed=${avatarSeed}&baseColor=${colorPalette}&backgroundColor=transparent`;
 
   const entity = {
@@ -126,7 +132,7 @@ export const createPersonEntity = (attributes: EntityAttributes, position: Vecto
       EventType.BIOBOT_CREATED, 
       EventCategory.LIFECYCLE, 
       EventSeverity.INFO, 
-      { id: entity.id, name: attributes.nombre, gender: attributes.sexo }
+      { id: entity.id, name: attributes.nombre, type: attributes.sexo }
   );
 
   return entity;

@@ -5,28 +5,27 @@ import { WorldCanvas } from './components/WorldCanvas';
 import { GameInterface } from './components/GameInterface';
 import { MusicPlayer } from './components/MusicPlayer';
 import { InstallPWA } from './components/InstallPWA';
-import { LoadingScreen } from './components/LoadingScreen'; // Import Loading Screen
+import { LoadingScreen } from './components/LoadingScreen';
 import { useGameLoop } from './hooks/useGameLoop';
-import { createPersonEntity, createLandEntity, generateRandomPosition, createWalletEntity, createBlockEntity, createGhostNode } from './services/gameService';
+import { createPersonEntity, createLandEntity, createWalletEntity, createBlockEntity, createGhostNode } from './services/gameService';
 import { RuntimeTestRunner } from './services/RuntimeTestRunner';
 import { Logger } from './services/LoggerService';
 import { StorageService } from './services/storageService';
 import { AudioManager } from './services/AudioManager'; 
-import { GameState, GameEntity, ACTION_COST, INITIAL_POINTS, EntityAttributes, EntityType, Vector2, EventType, EventCategory, EventSeverity, BlockType } from './types';
-import { WORLD_SIZE, WATER_SOUND_URL, AUTOSAVE_INTERVAL_MS } from './constants';
+import { GameState, GameEntity, INITIAL_POINTS, EntityAttributes, EntityType, EventType, EventCategory, EventSeverity, BlockType, ACTION_COST, Vector2 } from './types';
+import { WATER_SOUND_URL, AUTOSAVE_INTERVAL_MS } from './constants';
 import { GAME_CONFIG } from './gameConfig';
 
 function App() {
-  const [isLoading, setIsLoading] = useState(true); // Initial Loading State
+  const [isLoading, setIsLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasSaveGame, setHasSaveGame] = useState(false);
 
-  // Use lazy initialization for Audio to avoid blocking UI render if AudioContext is not ready
   const waterAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const [wastedManaTrigger, setWastedManaTrigger] = useState(0); 
   const [targetLostTrigger, setTargetLostTrigger] = useState(0); 
-  const [ghostDetectedTrigger, setGhostDetectedTrigger] = useState(0); // New Trigger
+  const [ghostDetectedTrigger, setGhostDetectedTrigger] = useState(0);
   const [isPlacingLand, setIsPlacingLand] = useState(false);
   
   const [pendingPersonAttributes, setPendingPersonAttributes] = useState<EntityAttributes | null>(null);
@@ -42,6 +41,7 @@ function App() {
   
   const [gameState, setGameState] = useState<GameState>({
     isPlaying: false,
+    isPaused: false,
     isWatering: false,
     entities: [],
     level: 1,
@@ -129,27 +129,29 @@ function App() {
 
   // --- GHOST SERVER SPAWNER ---
   useEffect(() => {
-      if (!isPlaying) return;
+      if (!isPlaying || gameState.isPaused) return; 
       if (gameState.level < GAME_CONFIG.GHOST_SYSTEM.START_LEVEL) return;
 
       const scheduleSpawn = () => {
-          // Calculate dynamic delay based on population
           const currentEntities = gameStateRef.current.entities;
           const activeBotCount = currentEntities.filter(e => e.type === EntityType.PERSON && e.attributes?.estado !== 'muerto').length;
           
-          // Speed up spawn by reducing delay based on bot count
           const reduction = activeBotCount * GAME_CONFIG.GHOST_SYSTEM.DYNAMIC.REDUCTION_MS_PER_BOT;
-          
           const minBase = GAME_CONFIG.GHOST_SYSTEM.MIN_INTERVAL_MS;
           const maxBase = GAME_CONFIG.GHOST_SYSTEM.MAX_INTERVAL_MS;
           const randomBase = Math.floor(Math.random() * (maxBase - minBase + 1)) + minBase;
           
-          // Apply reduction but enforce hard minimum cap
           const delay = Math.max(GAME_CONFIG.GHOST_SYSTEM.DYNAMIC.MIN_HARD_CAP_MS, randomBase - reduction);
 
           const timeoutId = setTimeout(() => {
-              // Logic inside timeout uses current ref to avoid stale state in closure
               const latestEntities = gameStateRef.current.entities;
+              const isStillPaused = gameStateRef.current.isPaused;
+              
+              if (isStillPaused) {
+                  scheduleSpawn(); 
+                  return;
+              }
+
               const ghostCount = latestEntities.filter(e => e.type === EntityType.LAND && e.landAttributes?.isGhost).length;
 
               if (ghostCount < GAME_CONFIG.GHOST_SYSTEM.MAX_CONCURRENT) {
@@ -161,7 +163,6 @@ function App() {
                   setGhostDetectedTrigger(prev => prev + 1);
               }
 
-              // Schedule next
               scheduleSpawn();
           }, delay);
 
@@ -171,7 +172,7 @@ function App() {
       const timerId = scheduleSpawn();
 
       return () => clearTimeout(timerId);
-  }, [isPlaying, gameState.level]);
+  }, [isPlaying, gameState.level, gameState.isPaused]);
 
 
   useEffect(() => {
@@ -244,7 +245,8 @@ function App() {
               return { ...prev, entities: updatedEntities };
           });
       }, 
-      isPlaying
+      isPlaying,
+      gameState.isPaused 
   );
 
   useEffect(() => {
@@ -265,6 +267,7 @@ function App() {
     setGameState(prev => ({
       ...prev,
       isPlaying: true,
+      isPaused: false,
       entities: [walletEntity], 
       level: 1, 
       player: { 
@@ -288,6 +291,7 @@ function App() {
           setGameState({
               ...loadedState,
               isPlaying: true, 
+              isPaused: false,
               isWatering: false, 
               level: savedLevel,
               player: {
@@ -313,6 +317,7 @@ function App() {
       setIsPlaying(false);
       setGameState({
         isPlaying: false,
+        isPaused: false,
         isWatering: false,
         entities: [],
         level: 1,
@@ -339,6 +344,7 @@ function App() {
       setGameState(prev => ({
         ...prev,
         isWatering: false,
+        isPaused: false,
         entities: [walletEntity], 
         level: 1,
         player: {
@@ -356,8 +362,22 @@ function App() {
       Logger.log(EventType.SYSTEM_ALERT, EventCategory.SYSTEM, EventSeverity.WARNING, { message: 'System Reboot Initiated' });
   };
 
+  const togglePause = () => {
+      setGameState(prev => {
+          const newPauseState = !prev.isPaused;
+          Logger.log(
+              EventType.SYSTEM_ALERT, 
+              EventCategory.SYSTEM, 
+              EventSeverity.INFO, 
+              { message: newPauseState ? 'Simulation Paused' : 'Simulation Resumed' }
+          );
+          return { ...prev, isPaused: newPauseState };
+      });
+  };
+
   const handleSingleNodeRecharge = (nodeId: string) => {
       if (gameState.player.points < ACTION_COST) {
+        setWastedManaTrigger(prev => prev + 1); // Trigger mana toast
         setIsTargetingRecharge(false);
         return;
       }
@@ -574,9 +594,15 @@ function App() {
             Logger.log(EventType.USER_ACTION, EventCategory.USER, EventSeverity.INFO, { action: 'WORK_ORDER' });
             const workEndTime = Date.now() + GAME_CONFIG.BIOBOT.WORK_DURATION_MS; 
             
+            // Check if we are targeting a specific bot (payload is ID)
+            const targetId = payload;
+
             setGameState(prev => ({
                 ...prev,
                 entities: prev.entities.map(e => {
+                    // If targetId is provided, only update that entity
+                    if (targetId && e.id !== targetId) return e;
+
                     if (e.attributes && e.attributes.estado !== 'muerto') {
                         return {
                              ...e,
@@ -720,6 +746,9 @@ function App() {
                 level={gameState.level} 
                 showLevelBanner={showLevelBanner} 
                 ghostDetectedTrigger={ghostDetectedTrigger}
+                isPaused={gameState.isPaused} 
+                togglePause={togglePause}
+                onNodeRecharge={handleSingleNodeRecharge}
               />
             </div>
           )

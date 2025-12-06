@@ -12,8 +12,8 @@ export enum BlockType {
 }
 
 export enum Gender {
-  MALE = 'Masculino',
-  FEMALE = 'Femenino',
+  MALE = 'ALFA', // Replaced Masculino
+  FEMALE = 'BETA', // Replaced Femenino
 }
 
 export interface Vector2 {
@@ -78,6 +78,7 @@ export interface PlayerState {
 
 export interface GameState {
   isPlaying: boolean;
+  isPaused: boolean; // New Pause State
   isWatering: boolean; 
   entities: GameEntity[];
   player: PlayerState;
