@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { StartScreen } from './components/StartScreen';
 import { WorldCanvas } from './components/WorldCanvas';
@@ -7,7 +8,7 @@ import { MusicPlayer } from './components/MusicPlayer';
 import { InstallPWA } from './components/InstallPWA';
 import { LoadingScreen } from './components/LoadingScreen';
 import { useGameLoop } from './hooks/useGameLoop';
-import { createPersonEntity, createLandEntity, createWalletEntity, createBlockEntity, createGhostNode } from './services/gameService';
+import { createPersonEntity, createLandEntity, createWalletEntity, createBlockEntity, createGhostNode, ensureOutsideWallet, createIntruderEntity } from './services/gameService';
 import { RuntimeTestRunner } from './services/RuntimeTestRunner';
 import { Logger } from './services/LoggerService';
 import { StorageService } from './services/storageService';
@@ -37,6 +38,7 @@ function App() {
   const [placingBlockType, setPlacingBlockType] = useState<BlockType | null>(null);
 
   const [globalStats, setGlobalStats] = useState({ globalScore: 0, averageEnergy: 0 });
+  const [pendingTotalCrypto, setPendingTotalCrypto] = useState(0); // New State for floating pending crypto
   const [showLevelBanner, setShowLevelBanner] = useState<string | null>(null);
   
   const [gameState, setGameState] = useState<GameState>({
@@ -175,6 +177,7 @@ function App() {
   }, [isPlaying, gameState.level, gameState.isPaused]);
 
 
+  // --- LEVEL UP LOGIC & INTRUDER SPAWNING ---
   useEffect(() => {
       if (!isPlaying) return;
       
@@ -195,6 +198,7 @@ function App() {
           }
       }
 
+      // Check Level Up or Level 1 Initialization
       if (nextLevel > currentLevel) {
           setGameState(prev => ({ ...prev, level: nextLevel }));
           setShowLevelBanner(`NIVEL ${nextLevel} ALCANZADO`);
@@ -206,11 +210,33 @@ function App() {
           }, 3000); 
       }
 
-  }, [globalStats.globalScore, gameState.player.points, isPlaying, gameState.level, gameState.player.stats.cryptoSpent]);
+      // --- INTRUDER SPAWN LOGIC (NOW STARTS AT LEVEL 1) ---
+      // We check nextLevel >= 1 to ensure it triggers on game start or level up
+      if (nextLevel >= 1 && !gameState.hasSpawnedIntruders) {
+          // Default minimum if no bots exist yet (e.g. game start)
+          const activeBots = Math.max(1, gameState.entities.filter(e => e.type === EntityType.PERSON && e.attributes?.estado !== 'muerto').length);
+          const intruderCount = Math.max(2, Math.floor(activeBots * GAME_CONFIG.INTRUDER.SPAWN_RATIO));
+          
+          Logger.log(EventType.SYSTEM_ALERT, EventCategory.THREAT, EventSeverity.WARNING, { message: `WARNING: DETECTED ${intruderCount} INTRUDERS APPROACHING FROM PERIMETER` });
+
+          const newIntruders: GameEntity[] = [];
+          for (let i = 0; i < intruderCount; i++) {
+              newIntruders.push(createIntruderEntity());
+          }
+
+          setGameState(prev => ({
+              ...prev,
+              entities: [...prev.entities, ...newIntruders],
+              hasSpawnedIntruders: true
+          }));
+      }
+
+  }, [globalStats.globalScore, gameState.player.points, isPlaying, gameState.level, gameState.player.stats.cryptoSpent, gameState.entities, gameState.hasSpawnedIntruders]);
 
 
   const [selectedEntity, setSelectedEntity] = useState<GameEntity | null>(null);
 
+  // --- MAIN GAME LOOP HOOK ---
   useGameLoop(
       gameState.entities, 
       (newEntities) => {
@@ -220,6 +246,8 @@ function App() {
               let totalScore = 0;
               let totalEnergy = 0;
               let botCount = 0;
+              let currentPendingCrypto = 0;
+              let activeIntrudersStealing = 0;
 
               updatedEntities.forEach(e => {
                   if (e.type === EntityType.PERSON && e.attributes) {
@@ -227,7 +255,13 @@ function App() {
                       if (e.attributes.estado !== 'muerto') {
                           totalEnergy += e.attributes.energia;
                           botCount++;
+                          currentPendingCrypto += (e.attributes.holdingCryptos || 0);
                       }
+                  }
+                  
+                  // Count attacking intruders
+                  if (e.type === EntityType.INTRUDER && e.intruderAttributes?.state === 'attacking') {
+                      activeIntrudersStealing++;
                   }
               });
 
@@ -235,6 +269,8 @@ function App() {
                   globalScore: Math.floor(totalScore),
                   averageEnergy: botCount > 0 ? Math.floor(totalEnergy / botCount) : 0
               });
+              
+              setPendingTotalCrypto(Math.floor(currentPendingCrypto));
 
               if (selectedEntity) {
                   const updatedSelected = updatedEntities.find(e => e.id === selectedEntity.id);
@@ -242,7 +278,30 @@ function App() {
                       setSelectedEntity(null);
                   }
               }
-              return { ...prev, entities: updatedEntities };
+
+              // --- INTRUDER THEFT LOGIC ---
+              let newCryptoSpent = prev.player.stats.cryptoSpent || 0;
+              if (activeIntrudersStealing > 0) {
+                  // 5 Crypto per second. Game runs at approx 60fps? 
+                  // Let's assume loop runs frequently. 
+                  // 5 / 60 = ~0.083 per frame per intruder.
+                  // For robustness, let's use a smaller fraction assuming 60Hz update.
+                  // We add to cryptoSpent (simulate loss)
+                  const stealAmount = (GAME_CONFIG.INTRUDER.STEAL_RATE_PER_SEC / 60) * activeIntrudersStealing;
+                  newCryptoSpent += stealAmount;
+              }
+
+              return { 
+                  ...prev, 
+                  entities: updatedEntities,
+                  player: {
+                      ...prev.player,
+                      stats: {
+                          ...prev.player.stats,
+                          cryptoSpent: newCryptoSpent
+                      }
+                  }
+              };
           });
       }, 
       isPlaying,
@@ -270,6 +329,7 @@ function App() {
       isPaused: false,
       entities: [walletEntity], 
       level: 1, 
+      hasSpawnedIntruders: false,
       player: { 
           ...prev.player, 
           name, 
@@ -294,6 +354,7 @@ function App() {
               isPaused: false,
               isWatering: false, 
               level: savedLevel,
+              hasSpawnedIntruders: loadedState.hasSpawnedIntruders || false,
               player: {
                   ...loadedState.player,
                   stats: {
@@ -347,6 +408,7 @@ function App() {
         isPaused: false,
         entities: [walletEntity], 
         level: 1,
+        hasSpawnedIntruders: false,
         player: {
           ...prev.player,
           points: INITIAL_POINTS,
@@ -501,7 +563,8 @@ function App() {
                             ...e.attributes,
                             estado: 'muerto' as const,
                             deathTimestamp: Date.now(),
-                            energia: 0 
+                            energia: 0,
+                            holdingCryptos: 0
                         }
                     };
                 }
@@ -536,13 +599,99 @@ function App() {
                             estado: 'ocioso' as const,
                             energia: 50, 
                             deathTimestamp: undefined,
-                            zeroEnergySince: undefined
+                            zeroEnergySince: undefined,
+                            holdingCryptos: 0
                         }
                     };
                 }
                 return e;
             })
         }));
+        return;
+    }
+
+    // --- COMBAT HANDLER (UPDATED for Dynamic Duration & Range) ---
+    if (actionType === 'ATTACK_INTRUDER') {
+        const attackerId = payload;
+        
+        // Find attacker entity
+        const attacker = gameState.entities.find(e => e.id === attackerId);
+        if (!attacker || !attacker.attributes) return;
+
+        // Calculate dynamic values based on attacker's energy
+        const energyPercent = Math.max(0, Math.min(1, attacker.attributes.energia / 100));
+
+        // 1. Dynamic Range Calculation
+        // Formula: Min Range + (Difference * EnergyPercent)
+        // 0% Energy -> 150px
+        // 100% Energy -> 450px
+        const dynamicRange = GAME_CONFIG.COMBAT.MIN_DISTANCE + 
+            (GAME_CONFIG.COMBAT.MAX_DISTANCE - GAME_CONFIG.COMBAT.MIN_DISTANCE) * energyPercent;
+
+        // Find nearest intruder
+        let nearestIntruder: GameEntity | null = null;
+        let minDist = Infinity;
+
+        gameState.entities.forEach(e => {
+            if (e.type === EntityType.INTRUDER) {
+                const dx = e.position.x - attacker.position.x;
+                const dy = e.position.y - attacker.position.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < minDist) {
+                    minDist = dist;
+                    nearestIntruder = e;
+                }
+            }
+        });
+
+        if (nearestIntruder && minDist <= dynamicRange) {
+            // 2. Dynamic Duration Calculation (Inverted: Higher Energy = Faster Kill)
+            // Formula: Min Duration + (Difference * (1 - EnergyPercent))
+            // 100% Energy -> 5s
+            // 0% Energy -> 20s
+            const finalDuration = GAME_CONFIG.COMBAT.MIN_DURATION_MS + 
+                (GAME_CONFIG.COMBAT.MAX_DURATION_MS - GAME_CONFIG.COMBAT.MIN_DURATION_MS) * (1 - energyPercent);
+
+            Logger.log(
+                EventType.COMBAT_STARTED, 
+                EventCategory.THREAT, 
+                EventSeverity.WARNING, 
+                { 
+                    attacker: attackerId, 
+                    target: (nearestIntruder as GameEntity).id, 
+                    duration: Math.round(finalDuration),
+                    rangeUsed: Math.round(dynamicRange)
+                }
+            );
+            
+            setGameState(prev => ({
+                ...prev,
+                entities: prev.entities.map(e => {
+                    if (e.id === attackerId && e.attributes) {
+                        return {
+                            ...e,
+                            attributes: {
+                                ...e.attributes,
+                                estado: 'peleando',
+                                combatTargetId: (nearestIntruder as GameEntity).id,
+                                combatTargetPosition: (nearestIntruder as GameEntity).position,
+                                combatEndTime: Date.now() + finalDuration
+                            }
+                        };
+                    }
+                    return e;
+                })
+            }));
+        } else {
+             // If too far or no target, show error toast
+             setTargetLostTrigger(prev => prev + 1);
+             Logger.log(
+                EventType.SYSTEM_ALERT, 
+                EventCategory.THREAT, 
+                EventSeverity.WARNING, 
+                { message: 'ATTACK_ABORTED: TARGET_OUT_OF_RANGE', dist: Math.round(minDist), maxRange: Math.round(dynamicRange) }
+             );
+        }
         return;
     }
 
@@ -617,8 +766,11 @@ function App() {
   };
 
   const handleLandPlacement = (position: Vector2) => {
+    // Ensure position is valid (not inside wallet)
+    const safePos = ensureOutsideWallet(position);
+
     if (blocksToPlace > 0 && placingBlockType) {
-        const newBlock = createBlockEntity(placingBlockType, position);
+        const newBlock = createBlockEntity(placingBlockType, safePos);
         setGameState(prev => ({
             ...prev,
             entities: [...prev.entities, newBlock]
@@ -633,13 +785,13 @@ function App() {
     }
 
     if (pendingPersonAttributes) {
-        handlePersonPlacement(position);
+        handlePersonPlacement(safePos);
         return;
     }
 
     if (gameState.player.points < ACTION_COST) return;
 
-    const newLand = createLandEntity(position);
+    const newLand = createLandEntity(safePos);
     
     setGameState(prev => ({ 
         ...prev, 
@@ -655,10 +807,13 @@ function App() {
   };
   
   const handlePersonPlacement = (position: Vector2) => {
+      // Ensure position is valid
+      const safePos = ensureOutsideWallet(position);
+
       if (!pendingPersonAttributes) return;
       if (gameState.player.points < ACTION_COST) return;
 
-      const newPerson = createPersonEntity(pendingPersonAttributes, position);
+      const newPerson = createPersonEntity(pendingPersonAttributes, safePos);
       
       setGameState(prev => ({ 
           ...prev, 
@@ -674,9 +829,12 @@ function App() {
   };
 
   const handleEntityDrag = (id: string, position: Vector2) => {
+      // Constrain dragging to valid area
+      const safePos = ensureOutsideWallet(position);
+
       setGameState(prev => ({
           ...prev,
-          entities: prev.entities.map(e => e.id === id ? { ...e, position } : e)
+          entities: prev.entities.map(e => e.id === id ? { ...e, position: safePos } : e)
       }));
   };
 
@@ -740,6 +898,7 @@ function App() {
                 isTargetingRecharge={isTargetingRecharge}
                 onBuyMana={handleBuyMana}
                 globalStats={globalStats}
+                pendingCrypto={pendingTotalCrypto} // Pass new prop
                 onExit={handleExitGame}
                 onRestart={handleRestartGame}
                 blocksToPlace={blocksToPlace} 

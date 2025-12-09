@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { AVATAR_PRESETS, BACKGROUND_IMAGE, GAME_VERSION, DEDICATION_IMAGE_URL } from '../constants';
-import { Play, User, Cpu, RefreshCcw, Heart, X, Info, Code2, Cloud, Palette, Smartphone, Zap, BookOpen, Shield, Skull, Database, Wallet, TrendingUp } from 'lucide-react';
+import { Play, User, Cpu, RefreshCcw, Heart, X, Info, Code2, Cloud, Palette, Smartphone, Zap, BookOpen, Shield, Skull, Database, Wallet, TrendingUp, Binary } from 'lucide-react';
 
 interface StartScreenProps {
   onStart: (name: string, avatar: string) => void;
@@ -65,7 +65,13 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
       <div className="relative z-10 w-full max-w-6xl p-4 md:p-8 flex flex-col items-center overflow-y-auto h-full md:h-auto justify-center">
         
         {/* DOMINANT TITLE SECTION - RESPONSIVE */}
-        <div className="text-center mb-8 md:mb-12 animate-title-pulse w-full px-4">
+        <div className="text-center mb-8 md:mb-12 animate-title-pulse w-full px-4 flex flex-col items-center">
+            {/* ANIMATED GAME LOGO */}
+            <div className="relative mb-6">
+                <Cpu size={100} className="text-tech-cyan animate-spin-slow drop-shadow-[0_0_25px_rgba(6,182,212,0.6)]" />
+                <Binary size={50} className="text-neon-green absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+            </div>
+
             <h1 className="text-4xl sm:text-6xl md:text-9xl font-tech font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-tech-cyan to-tech-purple drop-shadow-[0_0_25px_rgba(6,182,212,0.6)] tracking-tight leading-tight">
               BioBots
             </h1>

@@ -1,9 +1,11 @@
 
+
 export enum EntityType {
   PERSON = 'PERSON',
   LAND = 'LAND',
   WALLET = 'WALLET',
-  BLOCK = 'BLOCK', // New Entity Type
+  BLOCK = 'BLOCK',
+  INTRUDER = 'INTRUDER', // New Entity Type: Matrix Sentinel
 }
 
 export enum BlockType {
@@ -33,20 +35,34 @@ export interface BlockAttributes {
     variant?: number; // For visual variety
 }
 
+export interface IntruderAttributes {
+    state: 'seeking' | 'attacking';
+    targetId: string; // Usually the Core Wallet ID
+    tentaclePhase: number; // For animation
+    isEngaged?: boolean; // Stopped by combat
+    isDying?: boolean; // Exploding sequence
+    deathTimestamp?: number; // When death started
+}
+
 export interface EntityAttributes {
   nombre: string;
   sexo: Gender;
   edad: number;
   energia: number; // 0-100
-  estado: 'ocioso' | 'trabajando' | 'caminando' | 'socializando' | 'alimentandose' | 'muerto';
+  estado: 'ocioso' | 'trabajando' | 'caminando' | 'socializando' | 'alimentandose' | 'muerto' | 'peleando';
   workEndTime?: number; // Timestamp when work finishes
   personalidad: string;
   fuerza: number;
   inteligencia: number;
   individualScore: number;
+  holdingCryptos: number; // New: Crypto currently carried by the bot, not yet deposited
   // Death Mechanics
   zeroEnergySince?: number; // Timestamp when energy hit 0
   deathTimestamp?: number; // Timestamp when death occurred
+  // Combat Mechanics
+  combatTargetId?: string;
+  combatTargetPosition?: Vector2;
+  combatEndTime?: number;
 }
 
 export interface GameEntity {
@@ -58,6 +74,7 @@ export interface GameEntity {
   attributes?: EntityAttributes; // Only for people
   landAttributes?: LandAttributes; // Only for land
   blockAttributes?: BlockAttributes; // Only for blocks
+  intruderAttributes?: IntruderAttributes; // Only for intruders
   avatarUrl?: string;
   createdAt: number;
 }
@@ -84,6 +101,7 @@ export interface GameState {
   player: PlayerState;
   level: number; // New Level Tracking
   isLogViewerOpen?: boolean; // New state for Log Viewer
+  hasSpawnedIntruders?: boolean; // Flag to prevent multiple waves at level 3
 }
 
 export const INITIAL_POINTS = 50;
@@ -98,9 +116,13 @@ export enum EventType {
   LAND_CREATED = 'LAND_CREATED',
   LAND_DECAYED = 'LAND_DECAYED',
   LAND_WATERED = 'LAND_WATERED',
-  BLOCK_PLACED = 'BLOCK_PLACED', // New Event
+  BLOCK_PLACED = 'BLOCK_PLACED', 
   USER_ACTION = 'USER_ACTION',
-  SYSTEM_ALERT = 'SYSTEM_ALERT'
+  SYSTEM_ALERT = 'SYSTEM_ALERT',
+  INTRUDER_SPAWN = 'INTRUDER_SPAWN', // New
+  SECURITY_BREACH = 'SECURITY_BREACH', // New
+  COMBAT_STARTED = 'COMBAT_STARTED',
+  INTRUDER_ELIMINATED = 'INTRUDER_ELIMINATED'
 }
 
 export enum EventCategory {
@@ -108,7 +130,8 @@ export enum EventCategory {
   ECONOMY = 'ECONOMY',
   SYSTEM = 'SYSTEM',
   USER = 'USER',
-  CONSTRUCTION = 'CONSTRUCTION' // New Category
+  CONSTRUCTION = 'CONSTRUCTION',
+  THREAT = 'THREAT' // New Category
 }
 
 export enum EventSeverity {

@@ -1,8 +1,10 @@
 
+
 import React, { useEffect, useState } from 'react';
 import { GameEntity, EntityType, BlockType } from '../types';
-import { Server, Wallet, Cpu, Shield, Lock, Box } from 'lucide-react';
+import { Server, Wallet, Cpu, Shield, Lock, Box, Activity, Crosshair } from 'lucide-react';
 import { GAME_CONFIG } from '../gameConfig';
+import { WALLET_CENTER } from '../services/gameService';
 
 interface EntityNodeProps {
   entity: GameEntity;
@@ -51,7 +53,7 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
 
   useEffect(() => {
     if (!isPerson) return;
-    if (entity.attributes?.estado === 'muerto') return; 
+    if (entity.attributes?.estado === 'muerto' || entity.attributes?.estado === 'peleando') return; 
     if (isNewborn) return; 
 
     const interval = setInterval(() => {
@@ -117,6 +119,109 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
       return null;
   }
 
+  // --- INTRUDER RENDER (MATRIX SENTINEL) ---
+  if (entity.type === EntityType.INTRUDER) {
+      const isAttacking = entity.intruderAttributes?.state === 'attacking';
+      const isEngaged = entity.intruderAttributes?.isEngaged;
+      const isDying = entity.intruderAttributes?.isDying;
+      const phase = entity.intruderAttributes?.tentaclePhase || 0;
+      
+      // Calculate rotation to face the Wallet
+      const dx = WALLET_CENTER.x - entity.position.x;
+      const dy = WALLET_CENTER.y - entity.position.y;
+      const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+      if (isDying) {
+          return (
+              <div 
+                  className="absolute z-20 pointer-events-none"
+                  style={{ left: entity.position.x, top: entity.position.y }}
+              >
+                  {/* EXPLOSION EFFECT */}
+                  <div className="absolute -translate-x-1/2 -translate-y-1/2">
+                      <div className="w-16 h-16 bg-red-500 rounded-full animate-ping opacity-75" />
+                      <div className="absolute inset-0 w-16 h-16 border-4 border-yellow-400 rounded-full animate-shockwave-expand" />
+                      <div className="absolute inset-0 w-16 h-16 bg-white rounded-full animate-flash-burst" />
+                      {/* Particles */}
+                      <div className="absolute inset-0 w-2 h-2 bg-red-400 rounded-full animate-[float_0.5s_ease-out_forwards] translate-x-4 -translate-y-4" />
+                      <div className="absolute inset-0 w-2 h-2 bg-orange-400 rounded-full animate-[float_0.5s_ease-out_forwards] -translate-x-4 -translate-y-2" />
+                      <div className="absolute inset-0 w-2 h-2 bg-yellow-400 rounded-full animate-[float_0.5s_ease-out_forwards] translate-x-2 translate-y-4" />
+                  </div>
+              </div>
+          );
+      }
+
+      // Procedural Tentacles
+      const tentacles = Array.from({ length: 6 }).map((_, i) => {
+          const offset = i * 0.5;
+          const sway = Math.sin(phase + offset) * 10;
+          return (
+              <path 
+                key={i}
+                d={`M -5 ${i * 3 - 8} Q -25 ${i * 5 - 10 + sway} -50 ${i * 6 - 12 + sway * 2}`}
+                stroke="#64748b" // Lighter Slate Grey for visibility
+                strokeWidth="3"
+                fill="none"
+                className="opacity-90"
+              />
+          );
+      });
+
+      return (
+          <div 
+            className={`absolute z-20 pointer-events-none drop-shadow-[0_0_15px_rgba(220,38,38,0.8)] ${isEngaged ? 'animate-shake-critical' : ''}`}
+            style={{ 
+                left: entity.position.x, 
+                top: entity.position.y,
+                transform: `translate(-50%, -50%) rotate(${angle}deg)`
+            }}
+          >
+              <svg width="80" height="50" viewBox="-50 -25 80 50" className="overflow-visible">
+                  {/* Tentacles trailing behind */}
+                  {tentacles}
+                  
+                  {/* Main Body (Oval Head) - Metallic Grey */}
+                  <defs>
+                    <radialGradient id="sentinelMetal" cx="30%" cy="30%" r="70%">
+                        <stop offset="0%" stopColor="#94a3b8" />
+                        <stop offset="100%" stopColor="#1e293b" />
+                    </radialGradient>
+                  </defs>
+                  
+                  <ellipse 
+                    cx="0" 
+                    cy="0" 
+                    rx="14" 
+                    ry="10" 
+                    fill="url(#sentinelMetal)" 
+                    stroke={isEngaged ? "#ef4444" : "#cbd5e1"} 
+                    strokeWidth={isEngaged ? "2" : "1"}
+                    className={isEngaged ? "animate-pulse" : ""}
+                  />
+                  
+                  {/* Multiple Red Eyes (Matrix Sentinel Style) - Bright Red */}
+                  <circle cx="5" cy="-4" r="2" fill="#ef4444" className="animate-pulse" />
+                  <circle cx="8" cy="0" r="2.5" fill="#ef4444" className="animate-pulse" />
+                  <circle cx="5" cy="4" r="2" fill="#ef4444" className="animate-pulse" />
+                  
+                  {/* Side sensor eyes */}
+                  <circle cx="-2" cy="-6" r="1.5" fill="#991b1b" />
+                  <circle cx="-2" cy="6" r="1.5" fill="#991b1b" />
+                  
+                  {/* Status Effect if attacking */}
+                  {isAttacking && (
+                      <circle cx="12" cy="0" r="20" fill="none" stroke="red" strokeWidth="2" strokeDasharray="4,2" className="animate-ping opacity-60" />
+                  )}
+                  
+                  {/* Status Effect if Engaged (Taking Damage) */}
+                  {isEngaged && (
+                       <circle cx="0" cy="0" r="18" fill="none" stroke="white" strokeWidth="1" className="animate-ping opacity-80" />
+                  )}
+              </svg>
+          </div>
+      );
+  }
+
   // --- WALLET RENDER ---
   if (entity.type === EntityType.WALLET) {
       const energy = walletStats?.energy || 0;
@@ -143,7 +248,8 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
         <div 
             className="absolute transform -translate-x-1/2 -translate-y-1/2 z-20 cursor-pointer group"
             style={{ left: entity.position.x, top: entity.position.y }}
-            onClick={(e) => { e.stopPropagation(); onClick(entity); }}
+            onClick={(e) => { e.stopPropagation(); }}
+            onDoubleClick={(e) => { e.stopPropagation(); onClick(entity); }}
         >
             {/* Spinning Outer Ring */}
             <div className={`absolute -inset-8 rounded-full border-2 border-dashed animate-spin-slow ${ringClass}`} />
@@ -219,6 +325,7 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
 
     const isEating = entity.attributes?.estado === 'alimentandose';
     const isWorking = entity.attributes?.estado === 'trabajando';
+    const isFighting = entity.attributes?.estado === 'peleando';
     const isDead = entity.attributes?.estado === 'muerto';
     const energy = entity.attributes?.energia || 100;
 
@@ -230,23 +337,57 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
         onMouseDown={(e) => onMouseDown && onMouseDown(e, entity)}
         onTouchStart={(e) => onMouseDown && onMouseDown(e, entity)}
       >
-        <div className={`relative ${!isDead ? 'animate-breathe' : ''} ${isEating ? 'scale-110' : ''}`}>
-          <div className="absolute top-10 left-1/2 -translate-x-1/2 w-10 h-3 bg-black/40 blur-sm rounded-full scale-y-50" />
+        {/* COMBAT VISUALS (ALPHA ONLY) */}
+        {isFighting && entity.attributes?.combatTargetPosition && (
+            <div className="absolute top-1/2 left-1/2 pointer-events-none z-50">
+                <svg className="overflow-visible" width="1" height="1">
+                     {/* Laser Beam */}
+                     <line 
+                        x1="0" 
+                        y1="0" 
+                        x2={entity.attributes.combatTargetPosition.x - entity.position.x} 
+                        y2={entity.attributes.combatTargetPosition.y - entity.position.y} 
+                        stroke="#ef4444" 
+                        strokeWidth="3"
+                        strokeDasharray="10,5"
+                        className="animate-energy-flow opacity-80"
+                     />
+                     {/* Target Impact Effect (Tornado) */}
+                     <g transform={`translate(${entity.attributes.combatTargetPosition.x - entity.position.x}, ${entity.attributes.combatTargetPosition.y - entity.position.y})`}>
+                         <circle r="25" fill="none" stroke="#ef4444" strokeWidth="1" className="animate-spin-slow opacity-50" />
+                         <circle r="15" fill="none" stroke="#ef4444" strokeWidth="2" strokeDasharray="5,5" className="animate-spin-reverse opacity-80" />
+                         <path d="M-10,-10 L10,10 M10,-10 L-10,10" stroke="white" strokeWidth="2" className="animate-pulse" />
+                     </g>
+                </svg>
+            </div>
+        )}
+
+        <div className={`relative ${!isDead && !isFighting ? 'animate-breathe' : ''} ${isEating ? 'scale-110' : ''}`}>
+          {/* Shadow/Base (Scaled down to match body) */}
+          <div className="absolute top-8 left-1/2 -translate-x-1/2 w-8 h-2.5 bg-black/40 blur-sm rounded-full scale-y-50" />
           
+          {/* MAIN BODY (RESIZED: w-9 h-9 mobile, w-11 h-11 desktop) */}
           <div 
-            className="w-14 h-14 rounded-full shadow-[0_4px_10px_rgba(6,182,212,0.3)] bg-transparent overflow-visible transition-all duration-1000 relative z-10"
+            className={`w-9 h-9 md:w-11 md:h-11 rounded-full shadow-[0_4px_10px_rgba(6,182,212,0.3)] bg-transparent overflow-visible transition-all duration-1000 relative z-10 ${isFighting ? 'shadow-[0_0_20px_rgba(239,68,68,0.6)]' : ''}`}
             style={{ filter: getEnergyFilter(energy, isDead) }}
           >
             <img 
                 src={entity.avatarUrl} 
                 alt="Person" 
-                className="w-full h-full object-cover drop-shadow-md" 
+                className={`w-full h-full object-cover drop-shadow-md ${isFighting ? 'animate-shake-critical' : ''}`} 
             />
           </div>
 
-          {!isDead && (activeEmote || isEating) && (
-            <div className="absolute -top-6 -right-4 bg-slate-800 rounded-full p-1 shadow-lg text-lg animate-pop-in border border-white/20 z-20 min-w-[30px] text-center">
+          {!isDead && !isFighting && (activeEmote || isEating) && (
+            <div className="absolute -top-6 -right-4 bg-slate-800 rounded-full p-1 shadow-lg text-lg animate-pop-in border border-white/20 z-20 min-w-[24px] text-center scale-75 md:scale-90">
                 {isEating ? '⚡' : activeEmote}
+            </div>
+          )}
+
+          {/* COMBAT INDICATOR */}
+          {isFighting && (
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-alert-red/90 text-white px-2 py-0.5 rounded-full text-[8px] md:text-[10px] font-bold border border-red-500 shadow-lg whitespace-nowrap animate-bounce z-30 flex items-center gap-1">
+                <Crosshair size={10} /> ATACANDO
             </div>
           )}
 
@@ -254,11 +395,11 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
           {isWorking && !isDead && (
             <div className="absolute top-[80%] left-1/2 -translate-x-1/2 z-0 pointer-events-none">
                 {/* Electric Propulsion Tail */}
-                <div className="relative w-8 h-12 flex justify-center">
+                <div className="relative w-6 h-8 md:w-8 md:h-12 flex justify-center">
                     {/* Core Glow */}
-                    <div className="absolute top-0 w-2 h-4 bg-white rounded-full blur-[2px] animate-pulse" />
+                    <div className="absolute top-0 w-1.5 h-3 bg-white rounded-full blur-[2px] animate-pulse" />
                     {/* Outer Blue Glow */}
-                    <div className="absolute top-0 w-4 h-8 bg-tech-cyan/60 blur-md rounded-full" />
+                    <div className="absolute top-0 w-3 h-6 bg-tech-cyan/60 blur-md rounded-full" />
                     {/* Electric Stream SVG */}
                     <svg 
                         viewBox="0 0 24 24" 
@@ -276,12 +417,12 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
           )}
           
           {isDead && (
-             <div className="absolute -top-6 -left-4 bg-pink-900/90 text-pink-200 px-2 py-0.5 rounded-full text-[10px] font-bold border border-pink-500 shadow-lg whitespace-nowrap animate-pulse z-30">
+             <div className="absolute -top-6 -left-4 bg-pink-900/90 text-pink-200 px-2 py-0.5 rounded-full text-[8px] md:text-[10px] font-bold border border-pink-500 shadow-lg whitespace-nowrap animate-pulse z-30">
               💀 Muriendo
             </div>
           )}
 
-          <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/90 text-tech-cyan border border-tech-cyan/30 text-[10px] px-2 py-1 rounded whitespace-nowrap pointer-events-none z-30 font-mono tracking-wider">
+          <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/90 text-tech-cyan border border-tech-cyan/30 text-[9px] md:text-[10px] px-2 py-1 rounded whitespace-nowrap pointer-events-none z-30 font-mono tracking-wider">
             {entity.attributes?.nombre} ({Math.round(entity.attributes?.energia || 0)}%)
           </div>
         </div>
@@ -289,26 +430,26 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
     );
   }
 
-  // --- LAND RENDER (SERVER FARM) ---
+  // --- LAND RENDER (MATRIX POWER PLANT TOWER) ---
   if (entity.type === EntityType.LAND) {
       const resources = entity.landAttributes?.resourceLevel || 0;
       const isGhost = entity.landAttributes?.isGhost;
       
-      let bgClass = GAME_CONFIG.LAND.COLORS.EMPTY;
-      let borderClass = 'border-yellow-500/40';
-      let iconColor = 'text-yellow-800';
-      let glowColor = 'bg-yellow-400/20';
+      // Map existing stages to Neon Colors based on Matrix Aesthetic
+      let fluidColor = 'bg-yellow-500';
+      let shadowColor = 'shadow-yellow-500/50';
+      let coreColor = 'text-yellow-200';
 
       if (resources >= GAME_CONFIG.LAND.STAGE_2_THRESHOLD) {
-          bgClass = GAME_CONFIG.LAND.COLORS.READY; 
-          borderClass = 'border-green-500/40';
-          iconColor = 'text-green-900';
-          glowColor = 'bg-green-400/30';
+          // Green (Full Power / Matrix Green)
+          fluidColor = 'bg-neon-green';
+          shadowColor = 'shadow-neon-green/60';
+          coreColor = 'text-green-100';
       } else if (resources >= GAME_CONFIG.LAND.STAGE_1_THRESHOLD) {
-          bgClass = GAME_CONFIG.LAND.COLORS.GROWING; 
-          borderClass = 'border-pink-500/40';
-          iconColor = 'text-pink-900';
-          glowColor = 'bg-pink-400/30';
+          // Pink (Charging / Biomechanical)
+          fluidColor = 'bg-pink-500';
+          shadowColor = 'shadow-pink-500/60';
+          coreColor = 'text-pink-100';
       }
 
       const cursorClass = isGhost ? 'cursor-not-allowed opacity-80' : 'cursor-move group-active:scale-105';
@@ -321,22 +462,59 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
           onTouchStart={(e) => onMouseDown && onMouseDown(e, entity)}
           onClick={(e) => { e.stopPropagation(); onClick(entity); }}
         >
-          {/* Reduced size: w-20 h-20 mobile, w-24 h-24 desktop */}
-          <div className="relative w-20 h-20 md:w-24 md:h-24 opacity-90 transition-transform">
-            <div className={`absolute inset-0 rounded-xl blur-lg scale-110 animate-pulse-slow group-hover:opacity-80 transition-colors duration-1000 ${glowColor}`} />
-            <div className={`absolute inset-0 border border-dashed rounded-xl animate-[spin_20s_linear_infinite] transition-colors duration-1000 ${borderClass}`} />
-            <div className={`absolute inset-1 backdrop-blur-sm rounded-lg border border-white/20 flex flex-col items-center justify-center shadow-sm transition-all duration-1000 ${bgClass}`}>
-                {/* Updated Icon: Server Farm */}
-                <Server className={`w-8 h-8 md:w-10 md:h-10 transition-colors duration-1000 drop-shadow-sm ${iconColor}`} />
-                <div className="w-12 h-1 bg-black/20 rounded-full mt-1.5 overflow-hidden">
-                    <div className="h-full bg-white/90 transition-all duration-500" style={{ width: `${resources}%` }} />
+          {/* TOWER CONTAINER (Vertical, Biomechanical) */}
+          {/* REDUCED SIZE BY 40% (Original: w-16 h-28 md:w-20 md:h-36) */}
+          <div className="relative w-10 h-16 md:w-12 md:h-20 transition-transform duration-300">
+            
+            {/* 1. Base Pedestal (Scaled down) */}
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full h-2.5 bg-slate-900 border-t border-slate-700 rounded-[50%] shadow-lg z-20" />
+            
+            {/* 2. Main Tower Cylinder (Glass/Metal) */}
+            <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-3/4 h-[90%] bg-black/60 border-x border-slate-700 backdrop-blur-sm overflow-hidden z-10 rounded-t-xl">
+                
+                {/* Energy Fluid (Vertical Fill) */}
+                <div 
+                    className={`absolute bottom-0 left-0 w-full transition-all duration-1000 ease-out ${fluidColor} opacity-80`}
+                    style={{ height: `${resources}%` }}
+                >
+                    {/* Fluid Surface Glow */}
+                    <div className="absolute top-0 w-full h-0.5 bg-white/50 blur-[1px]" />
+                    {/* Bubbles effect via CSS pattern */}
+                    <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle,rgba(255,255,255,0.4)_1px,transparent_1px)] bg-[size:6px_6px]" />
+                </div>
+
+                {/* Inner Core Structure (Spine) */}
+                <div className="absolute inset-0 flex flex-col justify-evenly opacity-30">
+                    <div className="w-full h-px bg-slate-500" />
+                    <div className="w-full h-px bg-slate-500" />
+                    <div className="w-full h-px bg-slate-500" />
+                    <div className="w-full h-px bg-slate-500" />
+                    <div className="w-full h-px bg-slate-500" />
                 </div>
             </div>
-            
-            <div className={`absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 rounded-tl transition-colors duration-1000 ${borderClass.replace('border-dashed', '')}`} />
-            <div className={`absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 rounded-tr transition-colors duration-1000 ${borderClass.replace('border-dashed', '')}`} />
-            <div className={`absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 rounded-bl transition-colors duration-1000 ${borderClass.replace('border-dashed', '')}`} />
-            <div className={`absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 rounded-br transition-colors duration-1000 ${borderClass.replace('border-dashed', '')}`} />
+
+            {/* 3. Outer Ribs (The "Matrix Pod" look) */}
+            <div className="absolute inset-0 z-20 pointer-events-none">
+                {/* Left Rib (Scaled margin) */}
+                <div className="absolute left-0.5 top-2 bottom-2 w-0.5 bg-gradient-to-b from-slate-600 via-slate-400 to-slate-600 rounded-full opacity-80" />
+                {/* Right Rib (Scaled margin) */}
+                <div className="absolute right-0.5 top-2 bottom-2 w-0.5 bg-gradient-to-b from-slate-600 via-slate-400 to-slate-600 rounded-full opacity-80" />
+                
+                {/* Top Cap (Scaled height) */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[85%] h-3.5 bg-slate-800 rounded-full border-b border-slate-500 flex items-center justify-center shadow-md">
+                    <Activity size={10} className={`${coreColor} animate-pulse`} />
+                </div>
+            </div>
+
+            {/* 4. Glow Aura (Outer Halo) */}
+            <div className={`absolute inset-0 -z-10 rounded-full blur-lg opacity-40 transition-colors duration-1000 ${shadowColor}`} />
+
+            {/* Ghost Indicator */}
+            {isGhost && (
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-30">
+                    <div className="bg-purple-900/80 text-purple-200 text-[6px] px-1 rounded border border-purple-500/50">GHOST</div>
+                </div>
+            )}
           </div>
         </div>
       );

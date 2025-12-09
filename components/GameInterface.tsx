@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { PlayerState, GameEntity, Gender, INITIAL_POINTS, ACTION_COST, EntityType, BlockType } from '../types';
-import { Bot, Database, Zap, Pickaxe, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle, HardDrive, LogOut, RotateCcw, HeartPulse, ArrowRightLeft, Wallet, Hammer, Shield, Lock, Box, ChevronUp, Ghost, Pause, Play, Settings, Save } from 'lucide-react';
+import { Bot, Database, Zap, Pickaxe, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle, HardDrive, LogOut, RotateCcw, HeartPulse, ArrowRightLeft, Wallet, Hammer, Shield, Lock, Box, ChevronUp, Ghost, Pause, Play, Settings, Save, Swords } from 'lucide-react';
 import { createPersonJSON, getRandomGender } from '../services/gameService';
 import { GAME_CONFIG } from '../gameConfig';
 import { LiveConsole } from './LiveConsole';
@@ -24,6 +24,7 @@ interface GameInterfaceProps {
       globalScore: number;
       averageEnergy: number;
   };
+  pendingCrypto?: number; // New Prop for floating pending amount
   onExit: () => void;
   onRestart: () => void;
   blocksToPlace?: number; 
@@ -53,6 +54,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     isTargetingRecharge,
     onBuyMana,
     globalStats,
+    pendingCrypto = 0,
     onExit,
     onRestart,
     blocksToPlace,
@@ -78,6 +80,9 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const [showTargetLostToast, setShowTargetLostToast] = useState(false);
   const [showGhostToast, setShowGhostToast] = useState(false);
   const [showSaveToast, setShowSaveToast] = useState(false);
+  const [showBuildModeToast, setShowBuildModeToast] = useState(false);
+  const [showCryptoErrorToast, setShowCryptoErrorToast] = useState(false);
+  const [showCombatToast, setShowCombatToast] = useState(false);
 
   // Tools/Build Modal
   const [isToolsModalOpen, setToolsModalOpen] = useState(false);
@@ -191,14 +196,6 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
               setTimeout(() => setShowNoBotsToast(false), 3000);
               return;
           }
-      } else {
-          // Global check (deprecated for now but kept for safety)
-          const activeBots = entities.filter(e => e.type === EntityType.PERSON && e.attributes?.estado !== 'muerto');
-          if (activeBots.length === 0) {
-              setShowNoBotsToast(true);
-              setTimeout(() => setShowNoBotsToast(false), 3000);
-              return; 
-          }
       }
 
       checkManaAndExecute(() => {
@@ -210,7 +207,34 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       });
   };
 
-  const handleBuyBlocks = () => {
+  const handleAttackProtocol = (entityId: string) => {
+      if (entityId) {
+          const targetBot = entities.find(e => e.id === entityId);
+          if (!targetBot || targetBot.attributes?.estado === 'muerto') {
+             return;
+          }
+      }
+
+      // Check if there are intruders
+      const intruders = entities.filter(e => e.type === EntityType.INTRUDER);
+      if (intruders.length === 0) {
+          setShowTargetLostToast(true);
+          setTimeout(() => setShowTargetLostToast(false), 3000);
+          return;
+      }
+
+      onAction('ATTACK_INTRUDER', entityId);
+      setShowCombatToast(true);
+      setTimeout(() => setShowCombatToast(false), 3000);
+      onCloseSelection();
+  };
+
+  const handleBuyBlocks = (e: React.MouseEvent) => {
+      // Robust event handling
+      e.preventDefault();
+      e.nativeEvent.stopImmediatePropagation();
+      e.stopPropagation();
+
       if (!selectedBlockType) return;
       
       const price = selectedBlockType === BlockType.FIREWALL 
@@ -222,13 +246,19 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       const availableCrypto = Math.max(0, globalStats.globalScore - (player.stats.cryptoSpent || 0));
 
       if (totalCost > availableCrypto) {
-          alert("Fondos insuficientes de Criptomonedas");
+          setShowCryptoErrorToast(true);
+          setTimeout(() => setShowCryptoErrorToast(false), 3000);
+          setToolsModalOpen(false); // Close popup as requested
           return;
       }
 
       onAction('BUY_STRUCTURE', { type: selectedBlockType, quantity: blockQuantity, totalCost });
       setToolsModalOpen(false);
       setActiveMenu(null);
+      
+      // Feedback
+      setShowBuildModeToast(true);
+      setTimeout(() => setShowBuildModeToast(false), 3000);
   };
 
   const handleRedeemCode = () => {
@@ -416,6 +446,14 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         </div>
       )}
 
+      {/* Build Mode Started Toast */}
+      {showBuildModeToast && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-purple-600/90 backdrop-blur text-white px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-[0_0_20px_rgba(147,51,234,0.5)] animate-bounce flex items-center gap-3 z-[160] pointer-events-auto border border-purple-400 w-max max-w-[90vw] whitespace-normal text-center">
+            <Hammer size={20} className="shrink-0" />
+            <span className="font-mono font-bold text-xs md:text-sm">PROTOCOLO DE DEFENSA ACTIVADO</span>
+        </div>
+      )}
+
       {/* Recharge Mode Toast */}
       {isTargetingRecharge && (
         <div className="fixed top-24 left-1/2 -translate-x-1/2 bg-blue-600/90 backdrop-blur text-white px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-[0_0_20px_rgba(59,130,246,0.5)] animate-pulse flex items-center gap-3 z-[60] pointer-events-auto border border-blue-400 w-max max-w-[90vw] whitespace-normal text-center">
@@ -440,6 +478,14 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                 <span className="font-tech font-bold text-xs md:text-sm text-purple-300">ANOMALÍA DETECTADA</span>
                 <span className="font-mono text-xs">SERVIDOR FANTASMA MATERIALIZADO</span>
             </div>
+        </div>
+      )}
+
+      {/* Combat Started Toast */}
+      {showCombatToast && (
+        <div className="fixed top-32 left-1/2 -translate-x-1/2 bg-red-900/95 backdrop-blur text-white px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-[0_0_40px_rgba(220,38,38,0.8)] animate-pulse flex items-center gap-3 z-[65] pointer-events-auto border border-red-500 w-max max-w-[90vw] whitespace-normal text-center">
+            <Swords size={24} className="shrink-0 text-red-300" />
+            <span className="font-mono font-bold text-xs md:text-sm text-red-100">COMBATE INICIADO: PROTOCOLO ALFA</span>
         </div>
       )}
 
@@ -507,6 +553,14 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         </div>
       )}
 
+      {/* Toast Notification for Insufficient Crypto */}
+      {showCryptoErrorToast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-yellow-600 text-white px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto border border-yellow-400 w-max max-w-[90vw] whitespace-normal text-center">
+            <AlertTriangle size={18} className="shrink-0" />
+            <span className="font-mono font-bold text-xs md:text-sm">SALDO INSUFICIENTE: REQUIERE MÁS CRIPTO</span>
+        </div>
+      )}
+
       {/* Top Bar Wrapper - Responsive */}
       {/* INCREASED Z-INDEX to ensure it's above the backdrop layer */}
       <div className="flex flex-col md:flex-row items-center md:items-start justify-between pointer-events-auto w-full gap-3 md:gap-0 relative z-30">
@@ -550,6 +604,11 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                  <span className="text-base md:text-xl font-tech font-bold text-white leading-tight drop-shadow-[0_0_5px_rgba(139,92,246,0.5)]">
                      {availableCrypto.toLocaleString()}
                  </span>
+                 {pendingCrypto > 0 && (
+                     <span className="text-[9px] text-yellow-400 font-mono animate-pulse mt-0.5">
+                         +{pendingCrypto.toLocaleString()} minando...
+                     </span>
+                 )}
             </div>
 
             {/* Vitality Stat */}
@@ -564,10 +623,10 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         </div>
       </div>
 
-      {/* Tools / Build Modal */}
+      {/* Tools / Build Modal - INCREASED Z-INDEX TO FIX CLICK ISSUE */}
       {isToolsModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto p-4">
-              <div className="bg-slate-900 rounded-xl p-6 w-full max-w-md shadow-2xl border border-gray-600">
+          <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto p-4">
+              <div className="bg-slate-900 rounded-xl p-6 w-full max-w-md shadow-2xl border border-gray-600 relative">
                   <div className="flex justify-between items-center mb-6">
                       <h3 className="font-tech text-xl font-bold text-white flex items-center gap-2">
                           <Hammer size={20} className="text-gray-400" /> ALMACÉN DE RECURSOS
@@ -634,8 +693,9 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                           </div>
                           
                           <button 
+                            type="button"
                             onClick={handleBuyBlocks}
-                            className="w-full mt-4 bg-tech-cyan text-black font-bold py-3 rounded hover:bg-cyan-400 transition-colors shadow-lg"
+                            className="w-full mt-4 bg-tech-cyan text-black font-bold py-3 rounded hover:bg-cyan-400 transition-colors shadow-lg active:scale-95"
                           >
                               ADQUIRIR Y CONSTRUIR
                           </button>
@@ -926,19 +986,36 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                                 )}
                             </div>
 
-                            {/* MINING BUTTON - Prominent */}
+                            {/* PRIMARY ACTION BUTTON - CONDITIONAL BY GENDER */}
                             {selectedEntity.attributes.estado !== 'muerto' && (
-                                <button
-                                    onClick={() => {
-                                        handleWorkProtocol(selectedEntity.id);
-                                        onCloseSelection(); // Auto-close modal
-                                    }}
-                                    disabled={isPlacingLand || isPlacingPerson || isTargetingRecharge}
-                                    className="w-full bg-orange-600/20 border border-orange-500 text-orange-400 hover:bg-orange-500 hover:text-white transition-all py-3 rounded-lg flex items-center justify-center gap-2 font-bold font-tech tracking-wider text-sm shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.6)]"
-                                >
-                                    <Pickaxe size={18} />
-                                    MINAR
-                                </button>
+                                <>
+                                    {selectedEntity.attributes.sexo === Gender.FEMALE ? (
+                                        // BETA: MINER BUTTON
+                                        <button
+                                            onClick={() => {
+                                                handleWorkProtocol(selectedEntity.id);
+                                                onCloseSelection(); // Auto-close modal
+                                            }}
+                                            disabled={isPlacingLand || isPlacingPerson || isTargetingRecharge}
+                                            className="w-full bg-orange-600/20 border border-orange-500 text-orange-400 hover:bg-orange-500 hover:text-white transition-all py-3 rounded-lg flex items-center justify-center gap-2 font-bold font-tech tracking-wider text-sm shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.6)]"
+                                        >
+                                            <Pickaxe size={18} />
+                                            MINAR
+                                        </button>
+                                    ) : (
+                                        // ALFA: GUARDIAN BUTTON
+                                        <button
+                                            onClick={() => {
+                                                handleAttackProtocol(selectedEntity.id);
+                                            }}
+                                            disabled={isPlacingLand || isPlacingPerson || isTargetingRecharge}
+                                            className="w-full bg-red-600/20 border border-red-500 text-red-400 hover:bg-red-500 hover:text-white transition-all py-3 rounded-lg flex items-center justify-center gap-2 font-bold font-tech tracking-wider text-sm shadow-[0_0_15px_rgba(220,38,38,0.3)] hover:shadow-[0_0_25px_rgba(220,38,38,0.6)]"
+                                        >
+                                            <Swords size={18} />
+                                            ATACAR
+                                        </button>
+                                    )}
+                                </>
                             )}
                         </div>
                     )}
@@ -994,7 +1071,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       )}
 
       {/* NEW: Minecraft-Inspired Action Dock (Left Side) */}
-      <div className="pointer-events-auto absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-1 z-30"> 
+      <div className="pointer-events-auto absolute left-4 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 z-30"> 
           
           {/* 1. BIOBOT COMMAND CENTER */}
           <div className="relative group">
@@ -1009,34 +1086,34 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 
               {/* Sub-menu (Pop-out) */}
               {activeMenu === 'actions' && (
-                  <div className="absolute left-full top-0 ml-4 bg-slate-900/90 backdrop-blur-xl p-3 rounded-xl border border-tech-cyan/30 shadow-2xl flex flex-col gap-2 animate-pop-in origin-left">
-                      <div className="text-[10px] text-gray-400 font-mono font-bold uppercase mb-1 border-b border-gray-700 pb-1">Acciones</div>
+                  <div className="absolute left-full top-0 ml-3 bg-slate-900/95 backdrop-blur-xl p-2 rounded-xl border border-tech-cyan/30 shadow-2xl flex flex-col gap-1 animate-pop-in origin-left min-w-[180px]">
+                      <div className="text-[10px] text-gray-400 font-mono font-bold uppercase mb-1 border-b border-gray-700 pb-1 px-1">Acciones</div>
                       
                       {/* Create Bot */}
                       <button 
-                        onClick={handleCreatePerson}
-                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-40"
+                        onClick={() => { setModalOpen(true); setActiveMenu(null); }}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-48"
                       >
-                          <div className="p-1.5 bg-tech-cyan/20 rounded text-tech-cyan"><Cpu size={16}/></div>
-                          <span className="text-xs font-bold">Crear BioBot</span>
+                          <div className="p-2 bg-tech-cyan/20 rounded text-tech-cyan"><Cpu size={20}/></div>
+                          <span className="text-sm font-bold">Crear BioBot</span>
                       </button>
 
                       {/* Create Node */}
                       <button 
                         onClick={() => checkManaAndExecute(() => { onAction('CREATE_LAND'); setActiveMenu(null); })}
-                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-40"
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-48"
                       >
-                          <div className="p-1.5 bg-neon-green/20 rounded text-neon-green"><Database size={16}/></div>
-                          <span className="text-xs font-bold">Nuevo Nodo</span>
+                          <div className="p-2 bg-neon-green/20 rounded text-neon-green"><Database size={20}/></div>
+                          <span className="text-sm font-bold">Nuevo Nodo</span>
                       </button>
 
                       {/* Tools */}
                       <button 
                         onClick={() => { setToolsModalOpen(true); setActiveMenu(null); }}
-                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-40"
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-48"
                       >
-                          <div className="p-1.5 bg-gray-600/30 rounded text-gray-300"><Hammer size={16}/></div>
-                          <span className="text-xs font-bold">Herramientas</span>
+                          <div className="p-2 bg-gray-600/30 rounded text-gray-300"><Hammer size={20}/></div>
+                          <span className="text-sm font-bold">Herramientas</span>
                       </button>
                   </div>
               )}
@@ -1055,45 +1132,45 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 
               {/* Sub-menu (Pop-out) */}
               {activeMenu === 'system' && (
-                  <div className="absolute left-full top-0 ml-4 bg-slate-900/90 backdrop-blur-xl p-3 rounded-xl border border-yellow-500/30 shadow-2xl flex flex-col gap-2 animate-pop-in origin-left">
-                      <div className="text-[10px] text-gray-400 font-mono font-bold uppercase mb-1 border-b border-gray-700 pb-1">Sistema</div>
+                  <div className="absolute left-full top-0 ml-3 bg-slate-900/95 backdrop-blur-xl p-2 rounded-xl border border-yellow-500/30 shadow-2xl flex flex-col gap-1 animate-pop-in origin-left min-w-[180px]">
+                      <div className="text-[10px] text-gray-400 font-mono font-bold uppercase mb-1 border-b border-gray-700 pb-1 px-1">Sistema</div>
                       
                       {/* Pause */}
                       <button 
                         onClick={() => { togglePause(); setActiveMenu(null); }}
-                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-40"
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-48"
                       >
-                          <div className={`p-1.5 rounded ${isPaused ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-500'}`}>
-                              {isPaused ? <Play size={16}/> : <Pause size={16}/>}
+                          <div className={`p-2 rounded ${isPaused ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-500'}`}>
+                              {isPaused ? <Play size={20}/> : <Pause size={20}/>}
                           </div>
-                          <span className="text-xs font-bold">{isPaused ? "Reanudar" : "Pausar"}</span>
+                          <span className="text-sm font-bold">{isPaused ? "Reanudar" : "Pausar"}</span>
                       </button>
 
                       {/* Save */}
                       <button 
                         onClick={handleManualSave}
-                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-40"
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-48"
                       >
-                          <div className="p-1.5 bg-blue-500/20 rounded text-blue-400"><Save size={16}/></div>
-                          <span className="text-xs font-bold">Guardar</span>
+                          <div className="p-2 bg-blue-500/20 rounded text-blue-400"><Save size={20}/></div>
+                          <span className="text-sm font-bold">Guardar</span>
                       </button>
 
                       {/* Restart */}
                       <button 
                         onClick={() => { onRestart(); setActiveMenu(null); }}
-                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-40"
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-48"
                       >
-                          <div className="p-1.5 bg-orange-500/20 rounded text-orange-500"><RotateCcw size={16}/></div>
-                          <span className="text-xs font-bold">Reiniciar</span>
+                          <div className="p-2 bg-orange-500/20 rounded text-orange-500"><RotateCcw size={20}/></div>
+                          <span className="text-sm font-bold">Reiniciar</span>
                       </button>
 
                       {/* Exit */}
                       <button 
                         onClick={() => { onExit(); setActiveMenu(null); }}
-                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-red-900/30 text-red-400 transition-colors w-40 border border-red-900/50 hover:border-red-500"
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-red-900/30 text-red-400 transition-colors w-48 border border-red-900/50 hover:border-red-500"
                       >
-                          <div className="p-1.5 bg-red-500/10 rounded text-red-500"><LogOut size={16}/></div>
-                          <span className="text-xs font-bold">Salir</span>
+                          <div className="p-2 bg-red-500/10 rounded text-red-500"><LogOut size={20}/></div>
+                          <span className="text-sm font-bold">Salir</span>
                       </button>
                   </div>
               )}
@@ -1115,15 +1192,21 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                         <div className="flex gap-2">
                             <button 
                                 onClick={() => setCreationGender(Gender.MALE)}
-                                className={`flex-1 py-3 rounded border transition-all text-sm md:text-base font-mono ${creationGender === Gender.MALE ? 'bg-blue-600/20 border-blue-500 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.3)]' : 'bg-slate-800 border-slate-700 text-gray-500 hover:border-blue-500/50'}`}
+                                className={`flex-1 py-3 rounded border transition-all text-sm md:text-base font-mono ${creationGender === Gender.MALE ? 'bg-red-600/20 border-red-500 text-red-400 shadow-[0_0_10px_rgba(220,38,38,0.3)]' : 'bg-slate-800 border-slate-700 text-gray-500 hover:border-red-500/50'}`}
                             >
-                                ALFA (M)
+                                <div className="flex flex-col items-center">
+                                    <span className="font-bold">ALFA (M)</span>
+                                    <span className="text-[10px] uppercase opacity-70">Guardián</span>
+                                </div>
                             </button>
                             <button 
                                 onClick={() => setCreationGender(Gender.FEMALE)}
-                                className={`flex-1 py-3 rounded border transition-all text-sm md:text-base font-mono ${creationGender === Gender.FEMALE ? 'bg-pink-600/20 border-pink-500 text-pink-400 shadow-[0_0_10px_rgba(236,72,153,0.3)]' : 'bg-slate-800 border-slate-700 text-gray-500 hover:border-pink-500/50'}`}
+                                className={`flex-1 py-3 rounded border transition-all text-sm md:text-base font-mono ${creationGender === Gender.FEMALE ? 'bg-orange-600/20 border-orange-500 text-orange-400 shadow-[0_0_10px_rgba(249,115,22,0.3)]' : 'bg-slate-800 border-slate-700 text-gray-500 hover:border-orange-500/50'}`}
                             >
-                                BETA (F)
+                                <div className="flex flex-col items-center">
+                                    <span className="font-bold">BETA (F)</span>
+                                    <span className="text-[10px] uppercase opacity-70">Minero</span>
+                                </div>
                             </button>
                         </div>
                     </div>

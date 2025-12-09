@@ -9,13 +9,15 @@ interface MusicPlayerProps {
 export const MusicPlayer: React.FC<MusicPlayerProps> = ({ level }) => {
   
   // 1. Setup unlock listeners on mount
+  // This is critical for browsers that block autoplay. 
+  // We listen for the first user interaction to "unlock" (play) the audio.
   useEffect(() => {
     const unlockAudio = () => {
       AudioManager.unlock();
-      // Remove listeners once unlocked (AudioManager handles idempotency)
-      window.removeEventListener('click', unlockAudio);
-      window.removeEventListener('keydown', unlockAudio);
-      window.removeEventListener('touchstart', unlockAudio);
+      // Ensure current level music is playing if it was blocked
+      if (level > 0) {
+          AudioManager.playLevel(level);
+      }
     };
 
     window.addEventListener('click', unlockAudio);
@@ -27,7 +29,7 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ level }) => {
       window.removeEventListener('keydown', unlockAudio);
       window.removeEventListener('touchstart', unlockAudio);
     };
-  }, []);
+  }, [level]); // Added level dependence so closure has latest level
 
   // 2. React to Level Changes
   useEffect(() => {
@@ -36,13 +38,13 @@ export const MusicPlayer: React.FC<MusicPlayerProps> = ({ level }) => {
       }
   }, [level]);
 
-  // 3. Cleanup on unmount (Optional, usually we want music to persist unless app closes)
+  // 3. Cleanup on unmount
   useEffect(() => {
       return () => {
-          // AudioManager.stop(); // Uncomment if music should stop when component unmounts
+          // Optional: Stop music when entire player unmounts
+          // AudioManager.stop(); 
       };
   }, []);
 
-  // This component renders nothing, it's a logic controller
   return null;
 };
