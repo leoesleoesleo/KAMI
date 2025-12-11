@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { StartScreen } from './components/StartScreen';
 import { WorldCanvas } from './components/WorldCanvas';
@@ -9,10 +11,9 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { useGameLoop } from './hooks/useGameLoop';
 import { createPersonEntity, createLandEntity, createWalletEntity, createBlockEntity, createGhostNode, ensureOutsideWallet, createIntruderEntity, updateWorldState } from './services/gameService';
 import { RuntimeTestRunner } from './services/RuntimeTestRunner';
-import { Logger } from './services/LoggerService';
 import { StorageService } from './services/storageService';
 import { AudioManager } from './services/AudioManager'; 
-import { GameState, GameEntity, INITIAL_POINTS, EntityAttributes, EntityType, EventType, EventCategory, EventSeverity, BlockType, ACTION_COST, Vector2 } from './types';
+import { GameState, GameEntity, INITIAL_POINTS, EntityAttributes, EntityType, BlockType, ACTION_COST, Vector2 } from './types';
 import { WATER_SOUND_URL, AUTOSAVE_INTERVAL_MS } from './constants';
 import { GAME_CONFIG } from './gameConfig';
 
@@ -85,36 +86,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!isPlaying) return;
-    const interval = setInterval(() => {
-        Logger.log(
-            EventType.SYSTEM_ALERT,
-            EventCategory.SYSTEM,
-            EventSeverity.INFO,
-            { 
-                message: 'Ecosystem Snapshot', 
-                entities: gameState.entities.length, 
-                mana: gameState.player.points,
-                score: globalStats.globalScore 
-            }
-        );
-    }, 60000); 
-    return () => clearInterval(interval);
-  }, [isPlaying, gameState.entities.length, gameState.player.points, globalStats.globalScore]);
-
-  useEffect(() => {
       if (!isPlaying) return;
 
       const interval = setInterval(() => {
           const success = StorageService.saveGame(gameStateRef.current);
-          if (success) {
-              Logger.log(
-                  EventType.SYSTEM_ALERT,
-                  EventCategory.SYSTEM,
-                  EventSeverity.INFO,
-                  { message: 'Auto-save Complete' }
-              );
-          }
       }, AUTOSAVE_INTERVAL_MS);
 
       return () => clearInterval(interval);
@@ -126,7 +101,6 @@ function App() {
           if (!hasLands) {
               setIsTargetingRecharge(false);
               setTargetLostTrigger(prev => prev + 1); 
-              Logger.log(EventType.SYSTEM_ALERT, EventCategory.SYSTEM, EventSeverity.WARNING, { message: 'Recharge Mode Cancelled: No Nodes Available' });
           }
       }
   }, [gameState.entities, isTargetingRecharge]);
@@ -205,16 +179,6 @@ function App() {
                   entities: [...prev.entities, ...newIntruders]
               }));
 
-              Logger.log(
-                  EventType.INTRUDER_SPAWN,
-                  EventCategory.THREAT,
-                  EventSeverity.WARNING,
-                  { 
-                      message: 'PERIODIC WAVE INBOUND', 
-                      count: spawnCount, 
-                      formula: `Lvl ${currentLevel} * ${activeBots} Bots` 
-                  }
-              );
           }
 
       }, 60000); // Runs every 60 seconds (1 minute)
@@ -247,8 +211,6 @@ function App() {
       if (nextLevel > currentLevel) {
           setGameState(prev => ({ ...prev, level: nextLevel }));
           setShowLevelBanner(`NIVEL ${nextLevel} ALCANZADO`);
-          
-          Logger.log(EventType.SYSTEM_ALERT, EventCategory.SYSTEM, EventSeverity.INFO, { message: `LEVEL UP: ${nextLevel}` });
           
           setTimeout(() => {
               setShowLevelBanner(null);
@@ -389,7 +351,6 @@ function App() {
       }
     }));
     
-    Logger.log(EventType.SYSTEM_ALERT, EventCategory.SYSTEM, EventSeverity.INFO, { message: 'New Session Initialized', player: name });
   };
 
   const handleContinueGame = () => {
@@ -414,7 +375,6 @@ function App() {
               }
           });
           setIsPlaying(true);
-          Logger.log(EventType.SYSTEM_ALERT, EventCategory.SYSTEM, EventSeverity.INFO, { message: 'Session Restored from Backup' });
       } else {
           alert("Error: Save file corrupted or missing.");
           setHasSaveGame(false);
@@ -445,7 +405,6 @@ function App() {
         }
       });
       setHasSaveGame(true); 
-      Logger.log(EventType.SYSTEM_ALERT, EventCategory.SYSTEM, EventSeverity.WARNING, { message: 'Session Terminated & Saved' });
   };
 
   const handleRestartGame = () => {
@@ -471,18 +430,11 @@ function App() {
         }
       }));
       setGlobalStats({ globalScore: 0, averageEnergy: 0 });
-      Logger.log(EventType.SYSTEM_ALERT, EventCategory.SYSTEM, EventSeverity.WARNING, { message: 'System Reboot Initiated' });
   };
 
   const togglePause = () => {
       setGameState(prev => {
           const newPauseState = !prev.isPaused;
-          Logger.log(
-              EventType.SYSTEM_ALERT, 
-              EventCategory.SYSTEM, 
-              EventSeverity.INFO, 
-              { message: newPauseState ? 'Simulation Paused' : 'Simulation Resumed' }
-          );
           return { ...prev, isPaused: newPauseState };
       });
   };
@@ -524,7 +476,6 @@ function App() {
       }
 
       setRechargingNodeId(nodeId);
-      Logger.log(EventType.LAND_WATERED, EventCategory.ECONOMY, EventSeverity.INFO, { action: 'NODE_RECHARGE', target: nodeId });
 
       setTimeout(() => {
           setRechargingNodeId(null);
@@ -557,12 +508,6 @@ function App() {
         setBlocksToPlace(quantity);
         setPlacingBlockType(type);
         
-        Logger.log(
-            EventType.USER_ACTION,
-            EventCategory.ECONOMY,
-            EventSeverity.INFO,
-            { action: 'BUY_BLOCKS', type, quantity, cost: totalCost }
-        );
         return;
     }
 
@@ -592,12 +537,6 @@ function App() {
             }
         }));
 
-        Logger.log(
-            EventType.USER_ACTION, 
-            EventCategory.ECONOMY, 
-            EventSeverity.INFO, 
-            { action: 'EXCHANGE_EXEC', cost: cryptoCost, gain: energyGain }
-        );
         return;
     }
 
@@ -606,10 +545,6 @@ function App() {
             const updatedEntities = prev.entities.map(e => {
                 if (e.id === payload && e.type === EntityType.PERSON && e.attributes) {
                     
-                    if (e.attributes.estado !== 'muerto') {
-                        Logger.log(EventType.USER_ACTION, EventCategory.LIFECYCLE, EventSeverity.CRITICAL, { action: 'KILL_CMD', target: e.id });
-                    }
-
                     return {
                         ...e,
                         targetPosition: undefined, 
@@ -646,7 +581,6 @@ function App() {
             },
             entities: prev.entities.map(e => {
                 if (e.id === payload && e.type === EntityType.PERSON && e.attributes && e.attributes.estado === 'muerto') {
-                    Logger.log(EventType.USER_ACTION, EventCategory.LIFECYCLE, EventSeverity.INFO, { action: 'REVIVE_CMD', target: e.id });
                     return {
                         ...e,
                         attributes: {
@@ -707,17 +641,6 @@ function App() {
             const finalDuration = GAME_CONFIG.COMBAT.MIN_DURATION_MS + 
                 (GAME_CONFIG.COMBAT.MAX_DURATION_MS - GAME_CONFIG.COMBAT.MIN_DURATION_MS) * (1 - energyPercent);
 
-            Logger.log(
-                EventType.COMBAT_STARTED, 
-                EventCategory.THREAT, 
-                EventSeverity.WARNING, 
-                { 
-                    attacker: attackerId, 
-                    target: (nearestIntruder as GameEntity).id, 
-                    duration: Math.round(finalDuration),
-                    rangeUsed: Math.round(dynamicRange)
-                }
-            );
             
             setGameState(prev => ({
                 ...prev,
@@ -741,12 +664,6 @@ function App() {
         } else {
              // If too far or no target, show error toast
              setTargetLostTrigger(prev => prev + 1);
-             Logger.log(
-                EventType.SYSTEM_ALERT, 
-                EventCategory.THREAT, 
-                EventSeverity.WARNING, 
-                { message: 'ATTACK_ABORTED: TARGET_OUT_OF_RANGE', dist: Math.round(minDist), maxRange: Math.round(dynamicRange) }
-             );
         }
         return;
     }
@@ -777,7 +694,6 @@ function App() {
                 }
             }));
             setWastedManaTrigger(prev => prev + 1);
-            Logger.log(EventType.USER_ACTION, EventCategory.ECONOMY, EventSeverity.WARNING, { action: 'RECHARGE_FAILED', reason: 'NO_NODES' });
             return;
         } 
         
@@ -796,7 +712,6 @@ function App() {
 
     switch (actionType) {
         case 'CREATE_WORK':
-            Logger.log(EventType.USER_ACTION, EventCategory.USER, EventSeverity.INFO, { action: 'WORK_ORDER' });
             const workEndTime = Date.now() + GAME_CONFIG.BIOBOT.WORK_DURATION_MS; 
             
             // Check if we are targeting a specific bot (payload is ID)
@@ -895,7 +810,6 @@ function App() {
   };
 
   const handleBuyMana = (amount: number) => {
-    Logger.log(EventType.USER_ACTION, EventCategory.ECONOMY, EventSeverity.INFO, { action: 'BUY_MANA', amount });
     setGameState(prev => ({
         ...prev,
         player: {

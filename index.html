@@ -15,12 +15,40 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
     <script>
-      // Service Worker Registration
+      // Service Worker Registration with Update Detection
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./service-worker.js')
-            .then(reg => console.log('SW registered: ', reg))
-            .catch(err => console.log('SW registration failed: ', err));
+        window.addEventListener('load', async () => {
+          try {
+            const reg = await navigator.serviceWorker.register('./service-worker.js');
+            console.log('SW registered: ', reg);
+
+            // Check for waiting worker (update downloaded but not activated)
+            if (reg.waiting) {
+              window.dispatchEvent(new CustomEvent('sw-update-found', { detail: reg }));
+            }
+
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing;
+              newWorker.addEventListener('statechange', () => {
+                // If the new worker is installed and we already have a controller, an update is ready
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  console.log('New update available');
+                  window.dispatchEvent(new CustomEvent('sw-update-found', { detail: reg }));
+                }
+              });
+            });
+
+          } catch (err) {
+            console.log('SW registration failed: ', err);
+          }
+        });
+
+        // Refresh page when the new service worker takes control
+        let refreshing;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (refreshing) return;
+          window.location.reload();
+          refreshing = true;
         });
       }
 
@@ -48,7 +76,11 @@
               'splash': 'splash 0.5s ease-out forwards',
               'breathe': 'breathe 3s ease-in-out infinite',
               'pop-in': 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+              'fade-in': 'fadeIn 0.5s ease-out forwards',
+              'fade-in-up': 'fadeInUp 0.8s ease-out forwards',
+              'fade-in-down': 'fadeInDown 0.5s ease-out forwards',
               'fade-out-up': 'fadeOutUp 1s ease-in forwards',
+              'shimmer': 'shimmer 1.5s infinite',
               'machine-deploy': 'machineDeploy 0.5s ease-out forwards',
               'hologram-form': 'hologramForm 1s ease-in-out forwards',
               'shake-critical': 'shakeCritical 0.1s linear infinite',
@@ -66,6 +98,21 @@
               'thruster-burn': 'thrusterBurn 0.1s infinite',
             },
             keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' }
+              },
+              fadeInUp: {
+                '0%': { opacity: '0', transform: 'translateY(20px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' }
+              },
+              fadeInDown: {
+                '0%': { opacity: '0', transform: 'translateY(-20px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' }
+              },
+              shimmer: {
+                '100%': { transform: 'translateX(100%)' }
+              },
               float: {
                 '0%, 100%': { transform: 'translateY(0)' },
                 '50%': { transform: 'translateY(-10px)' },

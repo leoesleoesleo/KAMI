@@ -1,7 +1,6 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AVATAR_PRESETS, BACKGROUND_IMAGE, GAME_VERSION, DEDICATION_IMAGE_URL } from '../constants';
-import { Play, User, Cpu, RefreshCcw, Heart, X, Info, Code2, Cloud, Palette, Smartphone, Zap, BookOpen, Shield, Skull, Database, Wallet, TrendingUp, Binary } from 'lucide-react';
+import { Play, User, Cpu, RefreshCcw, Heart, X, Info, Code2, Cloud, Palette, Smartphone, Zap, BookOpen, Shield, Skull, Database, Wallet, TrendingUp, Binary, Eye, ThumbsUp, Activity } from 'lucide-react';
 
 interface StartScreenProps {
   onStart: (name: string, avatar: string) => void;
@@ -15,6 +14,39 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
   const [showCredits, setShowCredits] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showLore, setShowLore] = useState(false);
+
+  // Social Stats State - Initialized to 0
+  const [visitCount, setVisitCount] = useState(0);
+  const [likeCount, setLikeCount] = useState(0);
+  const [hasLiked, setHasLiked] = useState(false);
+
+  useEffect(() => {
+    // --- VISIT COUNTER LOGIC ---
+    const storedVisits = localStorage.getItem('biobots_visits');
+    const newVisits = storedVisits ? parseInt(storedVisits) + 1 : 1;
+    localStorage.setItem('biobots_visits', newVisits.toString());
+
+    // Set real local visits count (starts from 1 on first visit)
+    setVisitCount(newVisits);
+
+    // --- LIKE LOGIC ---
+    const likedState = localStorage.getItem('biobots_liked') === 'true';
+    setHasLiked(likedState);
+    
+    // Initialize like count based on stored state (0 or 1)
+    if (likedState) {
+        setLikeCount(1);
+    } else {
+        setLikeCount(0);
+    }
+  }, []);
+
+  const handleLike = () => {
+    const newState = !hasLiked;
+    setHasLiked(newState);
+    setLikeCount(prev => newState ? prev + 1 : prev - 1);
+    localStorage.setItem('biobots_liked', newState.toString());
+  };
 
   return (
     <div className="relative w-full h-screen overflow-hidden flex items-center justify-center bg-deep-space text-gray-100 font-sans">
@@ -62,10 +94,10 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
           </button>
       </div>
 
-      <div className="relative z-10 w-full max-w-6xl p-4 md:p-8 flex flex-col items-center overflow-y-auto h-full md:h-auto justify-center">
+      <div className="relative z-10 w-full max-w-6xl p-4 md:p-8 flex flex-col items-center overflow-y-auto h-full md:h-auto justify-center scrollbar-hide">
         
         {/* DOMINANT TITLE SECTION - RESPONSIVE */}
-        <div className="text-center mb-8 md:mb-12 animate-title-pulse w-full px-4 flex flex-col items-center">
+        <div className="text-center mb-6 md:mb-10 animate-title-pulse w-full px-4 flex flex-col items-center">
             {/* ANIMATED GAME LOGO */}
             <div className="relative mb-6">
                 <Cpu size={100} className="text-tech-cyan animate-spin-slow drop-shadow-[0_0_25px_rgba(6,182,212,0.6)]" />
@@ -80,6 +112,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
             </h2>
         </div>
 
+        {/* MAIN INTERFACE GRID */}
         <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 backdrop-blur-xl bg-slate-900/60 rounded-3xl border border-tech-cyan/20 shadow-[0_0_50px_rgba(6,182,212,0.1)] p-6 md:p-8">
             {/* Left Col: Welcome & Form */}
             <div className="flex flex-col justify-center space-y-6 md:space-y-8">
@@ -162,6 +195,45 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
             </div>
             </div>
         </div>
+
+        {/* --- SOCIAL STATS BAR --- */}
+        <div className="w-full mt-6 grid grid-cols-2 gap-4 max-w-2xl animate-fade-in-up">
+            {/* Visit Counter */}
+            <div className="bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-xl p-3 md:p-4 flex items-center justify-between hover:bg-slate-800/60 transition-colors group cursor-default">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
+                        <Eye size={20} />
+                    </div>
+                    <div>
+                        <p className="text-[9px] md:text-[10px] text-gray-500 font-mono font-bold uppercase tracking-wider">Accesos al Sistema</p>
+                        <p className="text-lg md:text-2xl font-tech font-bold text-white group-hover:text-blue-200 transition-colors">
+                            {visitCount.toLocaleString()}
+                        </p>
+                    </div>
+                </div>
+                <Activity size={20} className="text-blue-500/20 group-hover:text-blue-400 transition-colors" />
+            </div>
+
+            {/* Like Counter */}
+            <button 
+                onClick={handleLike}
+                className={`bg-slate-900/40 backdrop-blur-md border rounded-xl p-3 md:p-4 flex items-center justify-between transition-all group ${hasLiked ? 'border-neon-green/50 bg-neon-green/5 shadow-[0_0_15px_rgba(34,197,94,0.1)]' : 'border-white/10 hover:bg-slate-800/60 hover:border-pink-500/30'}`}
+            >
+                <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all group-hover:scale-110 ${hasLiked ? 'bg-neon-green/20 text-neon-green' : 'bg-pink-500/10 text-pink-500'}`}>
+                        <ThumbsUp size={20} className={hasLiked ? 'fill-current' : ''} />
+                    </div>
+                    <div className="text-left">
+                        <p className="text-[9px] md:text-[10px] text-gray-500 font-mono font-bold uppercase tracking-wider">Aprobación Global</p>
+                        <p className={`text-lg md:text-2xl font-tech font-bold transition-colors ${hasLiked ? 'text-neon-green' : 'text-white'}`}>
+                            {likeCount.toLocaleString()}
+                        </p>
+                    </div>
+                </div>
+                <div className={`w-2 h-2 rounded-full transition-all ${hasLiked ? 'bg-neon-green shadow-[0_0_10px_#10b981]' : 'bg-gray-700'}`} />
+            </button>
+        </div>
+
       </div>
 
       {/* --- CREDITS & DEDICATION MODAL --- */}

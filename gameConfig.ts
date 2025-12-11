@@ -67,8 +67,8 @@ export const GAME_CONFIG = {
           ENCRYPTION: 5
       },
       DURABILITY: {
-          FIREWALL: 1000,
-          ENCRYPTION: 500
+          FIREWALL: 30000, // 30 seconds (Madera)
+          ENCRYPTION: 60000 // 60 seconds (Metal/Gris)
       }
   },
   LEVELS: {

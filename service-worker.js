@@ -12,7 +12,8 @@ self.addEventListener('install', (event) => {
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );
-  self.skipWaiting();
+  // REMOVED: self.skipWaiting(); 
+  // We wait for the user to click "ACTUALIZAR VERSIÓN" to trigger skipWaiting via message
 });
 
 // Activate Event: Cleanup old caches
@@ -29,6 +30,13 @@ self.addEventListener('activate', (event) => {
     })
   );
   self.clients.claim();
+});
+
+// Message Event: Listen for 'SKIP_WAITING' to apply updates manually
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // Fetch Event: Stale-While-Revalidate Strategy

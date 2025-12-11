@@ -1,9 +1,9 @@
 
 
-import { EntityAttributes, Gender, Vector2, EntityType, GameEntity, LandAttributes, EventType, EventCategory, EventSeverity, BlockType } from '../types';
+
+import { EntityAttributes, Gender, Vector2, EntityType, GameEntity, LandAttributes, BlockType } from '../types';
 import { WORLD_SIZE } from '../constants';
 import { GAME_CONFIG } from '../gameConfig';
-import { Logger } from './LoggerService';
 
 // --- DATA CONSTANTS ---
 const NAMES_MALE = ["X-1", "Kryon", "Zet", "Aron-9", "Vector", "Helix", "Cobalt", "Neon", "Flux", "Titan"];
@@ -13,6 +13,10 @@ const PERSONALITIES = ["Lógico", "Protector", "Curioso", "Eficiente", "Místico
 export const WALLET_CENTER = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
 // Radius = Wallet Visual Radius (~40px) + Object Radius (~25px) + Padding (~25px)
 export const WALLET_SAFE_RADIUS = 90; 
+// Collision Radius for Physics
+const BIOBOT_COLLISION_RADIUS = 15;
+const INTRUDER_COLLISION_RADIUS = 15;
+const BLOCK_COLLISION_RADIUS = 25; // Effectively covers the 40px grid size loosely
 
 // --- UTILITY FUNCTIONS ---
 
@@ -116,13 +120,6 @@ export const createBlockEntity = (type: BlockType, position: Vector2): GameEntit
         createdAt: Date.now()
     };
 
-    Logger.log(
-        EventType.BLOCK_PLACED,
-        EventCategory.CONSTRUCTION,
-        EventSeverity.INFO,
-        { type, position: snappedPos }
-    );
-
     return entity;
 };
 
@@ -172,13 +169,6 @@ export const createPersonEntity = (attributes: EntityAttributes, position: Vecto
     createdAt: Date.now(),
   };
 
-  Logger.log(
-      EventType.BIOBOT_CREATED, 
-      EventCategory.LIFECYCLE, 
-      EventSeverity.INFO, 
-      { id: entity.id, name: attributes.nombre, type: attributes.sexo }
-  );
-
   return entity;
 };
 
@@ -195,13 +185,6 @@ export const createLandEntity = (position: Vector2): GameEntity => {
     createdAt: Date.now(),
   };
   
-  Logger.log(
-      EventType.LAND_CREATED, 
-      EventCategory.ECONOMY, 
-      EventSeverity.INFO, 
-      { id: entity.id, position }
-  );
-
   return entity;
 };
 
@@ -229,13 +212,6 @@ export const createGhostNode = (): GameEntity => {
         }
     }
 
-    Logger.log(
-        EventType.SYSTEM_ALERT,
-        EventCategory.SYSTEM,
-        EventSeverity.INFO,
-        { action: 'GHOST_SPAWN', resources: resourceLevel }
-    );
-
     return entity;
 };
 
@@ -255,17 +231,23 @@ export const createIntruderEntity = (): GameEntity => {
         createdAt: Date.now()
     };
 
-    Logger.log(
-        EventType.INTRUDER_SPAWN,
-        EventCategory.THREAT,
-        EventSeverity.WARNING,
-        { action: 'SENTINEL_DETECTED', origin: position }
-    );
-
     return entity;
 };
 
 // --- CORE LOGIC MODULES (PURE FUNCTIONS) ---
+
+const checkCollision = (
+    pos1: Vector2, 
+    radius1: number, 
+    pos2: Vector2, 
+    radius2: number
+): boolean => {
+    const dx = pos1.x - pos2.x;
+    const dy = pos1.y - pos2.y;
+    const distSq = dx * dx + dy * dy;
+    const radSum = radius1 + radius2;
+    return distSq < radSum * radSum;
+};
 
 export const calculateWorkPoints = (resourceLevel: number): number => {
     if (resourceLevel >= GAME_CONFIG.LAND.STAGE_2_THRESHOLD) return GAME_CONFIG.SCORING.GREEN_TICK;
@@ -288,15 +270,6 @@ export const processLandDecay = (entity: GameEntity, now: number): boolean => {
 
     const isDecayed = (now - attr.emptySince) > GAME_CONFIG.LAND.DECAY_TIMEOUT_MS;
     
-    if (isDecayed) {
-         Logger.log(
-            EventType.LAND_DECAYED,
-            EventCategory.ECONOMY,
-            EventSeverity.WARNING,
-            { id: entity.id, reason: 'TIMEOUT' }
-        );
-    }
-    
     return isDecayed;
 };
 
@@ -318,13 +291,6 @@ export const processDeathLifecycle = (entity: GameEntity, attr: EntityAttributes
                 attr.deathTimestamp = now;
                 attr.holdingCryptos = 0; // Lost carried crypto on death
                 
-                Logger.log(
-                    EventType.BIOBOT_DEATH,
-                    EventCategory.LIFECYCLE,
-                    EventSeverity.CRITICAL,
-                    { id: entity.id, name: attr.nombre, cause: 'ENERGY_DEPLETION' }
-                );
-                
                 return false; 
             }
         }
@@ -337,20 +303,37 @@ export const processDeathLifecycle = (entity: GameEntity, attr: EntityAttributes
 
 export const processIntruder = (
     entity: GameEntity,
+    blocks: GameEntity[],
     now: number
 ): GameEntity => {
     if (!entity.intruderAttributes) return entity;
     const attr = entity.intruderAttributes;
     
     // --- COMBAT FREEZE LOGIC ---
-    // If engaged in combat or dying, stop movement
     if (attr.isEngaged || attr.isDying) {
-        // Just update visual phase if needed, but don't move position
-        attr.tentaclePhase = (attr.tentaclePhase + 0.2) % (Math.PI * 2); // Faster vibration
+        attr.tentaclePhase = (attr.tentaclePhase + 0.2) % (Math.PI * 2); 
         return {
             ...entity,
             intruderAttributes: attr
         };
+    }
+
+    // --- STRUCTURE ATTACK LOGIC ---
+    if (attr.state === 'attacking_structure') {
+        // Find if target block still exists
+        const targetBlock = blocks.find(b => b.id === attr.targetId);
+        
+        // If block destroyed or gone, resume seeking
+        if (!targetBlock) {
+             attr.state = 'seeking';
+             attr.targetId = 'CORE-WALLET-001';
+             attr.attackStartTime = undefined;
+        } else {
+             // Stay here attacking
+             attr.tentaclePhase = (attr.tentaclePhase + 0.3) % (Math.PI * 2); // Fast vibration
+             // No movement
+             return { ...entity, intruderAttributes: attr };
+        }
     }
 
     const pos = { ...entity.position };
@@ -370,24 +353,40 @@ export const processIntruder = (
     if (dist <= attackRange) {
         if (attr.state !== 'attacking') {
             attr.state = 'attacking';
-            Logger.log(
-                EventType.SECURITY_BREACH, 
-                EventCategory.THREAT, 
-                EventSeverity.CRITICAL, 
-                { id: entity.id, status: 'ATTACHED_TO_CORE' }
-            );
         }
         // Attacking behavior: Stay stuck to the edge of the wallet
-        // Optional: slight jitter effect
         const jitter = Math.sin(now * 0.02) * 2;
         // Keep position on the perimeter
-        // We don't change pos much, just ensure it stays stuck
     } else {
         attr.state = 'seeking';
         // Move towards wallet
         const speed = GAME_CONFIG.INTRUDER.SPEED;
-        pos.x += (dx / dist) * speed;
-        pos.y += (dy / dist) * speed;
+        const vx = (dx / dist) * speed;
+        const vy = (dy / dist) * speed;
+        
+        const nextX = pos.x + vx;
+        const nextY = pos.y + vy;
+
+        // --- BLOCK COLLISION CHECK ---
+        let collidedBlock: GameEntity | null = null;
+        for (const block of blocks) {
+            if (checkCollision({ x: nextX, y: nextY }, INTRUDER_COLLISION_RADIUS, block.position, BLOCK_COLLISION_RADIUS)) {
+                collidedBlock = block;
+                break;
+            }
+        }
+
+        if (collidedBlock) {
+            // Initiate attack on structure
+            attr.state = 'attacking_structure';
+            attr.targetId = collidedBlock.id;
+            attr.attackStartTime = now;
+            
+        } else {
+            // No collision, apply movement
+            pos.x = nextX;
+            pos.y = nextY;
+        }
     }
 
     return {
@@ -399,7 +398,7 @@ export const processIntruder = (
 
 export const processBioBot = (
     entity: GameEntity, 
-    lands: GameEntity[], 
+    entities: GameEntity[], 
     now: number, 
     speed: number, 
     interactionRadius: number
@@ -407,15 +406,14 @@ export const processBioBot = (
     if (!entity.attributes) return entity;
     const attr = entity.attributes;
 
+    const lands = entities.filter(e => e.type === EntityType.LAND);
+    const blocks = entities.filter(e => e.type === EntityType.BLOCK);
+
     if (attr.estado === 'muerto') return entity;
 
-    // --- FIGHTING LOGIC (New) ---
+    // --- FIGHTING LOGIC ---
     if (attr.estado === 'peleando') {
-        // Just consume energy slowly while fighting
         attr.energia = Math.max(0, attr.energia - GAME_CONFIG.BIOBOT.ENERGY_DECAY_WORK);
-        
-        // No movement updates here, handled in updateWorldState for removal logic
-        // But we want to ensure the position stays static or maybe jitters slightly
         return {
              ...entity,
              attributes: attr
@@ -425,20 +423,13 @@ export const processBioBot = (
     let newState = attr.estado;
     let newPos = { ...entity.position };
     
-    // --- NEW: OVERLOAD MECHANIC (CRITICAL MASS) ---
-    // If the bot holds more than 2000 crypto while away from node, it burns out and dies
+    // --- OVERLOAD MECHANIC ---
     if ((attr.holdingCryptos || 0) > 2000) {
         attr.estado = 'muerto';
         attr.energia = 0;
-        attr.holdingCryptos = 0; // All data lost
+        attr.holdingCryptos = 0;
         attr.deathTimestamp = now;
 
-        Logger.log(
-            EventType.BIOBOT_DEATH,
-            EventCategory.LIFECYCLE,
-            EventSeverity.CRITICAL,
-            { id: entity.id, name: attr.nombre, cause: 'SYSTEM_OVERLOAD_2000' }
-        );
         return { ...entity, attributes: attr };
     }
 
@@ -477,14 +468,11 @@ export const processBioBot = (
     const inInteractionRange = nearestLand && minDist < GAME_CONFIG.BIOBOT.FEEDING_RADIUS;
 
     // --- STATE LOGIC ---
-    // If working, ensure the land still exists and has resources
     if (newState === 'trabajando') {
         if (!nearestLand) {
-            // FIX: Prevent ghost working if land decayed/disappeared
             newState = 'ocioso';
             attr.estado = 'ocioso';
         } else if (nearestLand.landAttributes && nearestLand.landAttributes.resourceLevel === 0) {
-            // Stop working if resources depleted
             newState = 'ocioso';
             attr.estado = 'ocioso';
         }
@@ -503,7 +491,6 @@ export const processBioBot = (
         const resources = nearestLand.landAttributes?.resourceLevel || 0;
         if (resources > 0) {
              const pointsToAdd = calculateWorkPoints(resources);
-             // NEW: Accumulate in holdingCryptos instead of global score immediately
              attr.holdingCryptos = (attr.holdingCryptos || 0) + pointsToAdd;
         }
     }
@@ -512,26 +499,14 @@ export const processBioBot = (
         attr.estado = 'ocioso';
     }
 
-    // --- DEPOSIT LOGIC (SEPARATED FROM WORKING STATE) ---
-    // Anytime the bot touches a node, it offloads its crypto cargo
-    // This ensures that even if it stopped working (timer ended) right before arrival, it deposits.
+    // --- DEPOSIT LOGIC ---
     if (nearestLand && minDist < interactionRadius + 20) {
         if ((attr.holdingCryptos || 0) > 0) {
             attr.individualScore = (attr.individualScore || 0) + attr.holdingCryptos;
-            attr.holdingCryptos = 0; // Empty buffer
-            // Optional: Visual effect or log could trigger here
+            attr.holdingCryptos = 0; 
         }
     }
 
-    // Only log state changes to avoid spam
-    if (newState !== entity.attributes.estado) {
-        Logger.log(
-            EventType.BIOBOT_STATE_CHANGE,
-            EventCategory.LIFECYCLE,
-            EventSeverity.INFO,
-            { id: entity.id, from: entity.attributes.estado, to: newState }
-        );
-    }
     attr.estado = newState;
 
     // --- MOVEMENT PHYSICS ---
@@ -569,12 +544,35 @@ export const processBioBot = (
 
     if (dist > 1) {
         const moveSpeed = newState === 'alimentandose' ? speed * 0.2 : speed;
-        newPos.x += (dx / dist) * moveSpeed;
-        newPos.y += (dy / dist) * moveSpeed;
+        let nextX = newPos.x + (dx / dist) * moveSpeed;
+        let nextY = newPos.y + (dy / dist) * moveSpeed;
+
+        // --- BLOCK COLLISION & BOUNCE LOGIC ---
+        // BioBots should bounce off blocks
+        for (const block of blocks) {
+            if (checkCollision({ x: nextX, y: nextY }, BIOBOT_COLLISION_RADIUS, block.position, BLOCK_COLLISION_RADIUS)) {
+                // Collision detected: Bounce back
+                // Calculate bounce vector (away from block center)
+                const bx = nextX - block.position.x;
+                const by = nextY - block.position.y;
+                const bDist = Math.sqrt(bx * bx + by * by) || 1; // Avoid divide by zero
+                
+                // Push away with a bit more force than speed to clear collision
+                const bounceForce = moveSpeed * 1.5;
+                nextX = newPos.x + (bx / bDist) * bounceForce;
+                nextY = newPos.y + (by / bDist) * bounceForce;
+                
+                // Add jitter to avoid getting stuck in perfect loops
+                nextX += (Math.random() - 0.5) * 5;
+                nextY += (Math.random() - 0.5) * 5;
+            }
+        }
+
+        newPos.x = nextX;
+        newPos.y = nextY;
     }
 
     // --- CORE WALLET PHYSICAL COLLISION LOGIC ---
-    // Ensure the new calculated position is not inside the wallet
     const adjustedPos = ensureOutsideWallet(newPos);
     newPos.x = adjustedPos.x;
     newPos.y = adjustedPos.y;
@@ -601,8 +599,7 @@ export const updateWorldState = (
     const now = overrideNow || Date.now();
     let playerEnergyConsumed = 0;
     
-    // First, identify combat resolution needs
-    // We need to know which intruders are being targeted and if they die
+    // Combat tracking
     const botsToReset = new Set<string>();
     const dyingIntruderIds = new Set<string>();
     const engagedIntruderIds = new Set<string>();
@@ -613,7 +610,6 @@ export const updateWorldState = (
              if (targetId) engagedIntruderIds.add(targetId);
 
              if (e.attributes.combatEndTime && now > e.attributes.combatEndTime) {
-                 // Combat finished successfully for this bot
                  if (targetId) {
                      dyingIntruderIds.add(targetId);
                  }
@@ -622,11 +618,29 @@ export const updateWorldState = (
         }
     });
 
-    // Notify logs if intruders start dying
-    if (dyingIntruderIds.size > 0) {
-         // Optimization: Don't log if they were already dying, but simple check is okay
-    }
+    // --- BLOCK DESTRUCTION LOGIC ---
+    const blocksToDestroy = new Set<string>();
     
+    entities.forEach(e => {
+        if (e.type === EntityType.INTRUDER && e.intruderAttributes?.state === 'attacking_structure') {
+            const attr = e.intruderAttributes;
+            if (attr.attackStartTime && attr.targetId) {
+                // Find block config
+                const block = entities.find(b => b.id === attr.targetId);
+                if (block && block.blockAttributes) {
+                    const timeAttacking = now - attr.attackStartTime;
+                    
+                    // Check threshold based on block type (ms)
+                    const threshold = block.blockAttributes.durability;
+
+                    if (timeAttacking >= threshold) {
+                        blocksToDestroy.add(block.id);
+                    }
+                }
+            }
+        }
+    });
+
     const nextEntities = entities.map(e => ({
         ...e,
         position: {...e.position},
@@ -635,10 +649,21 @@ export const updateWorldState = (
         intruderAttributes: e.intruderAttributes ? {...e.intruderAttributes} : undefined
     }));
 
+    // Filter for interaction lookups
     const lands = nextEntities.filter(e => e.type === EntityType.LAND);
+    // Note: Blocks are passed into process functions via full entity list filtering inside them or here
+    // But since we need them for collision inside processBioBot/Intruder, better pass them or let them filter.
+    // processBioBot currently filters inside. processIntruder takes blocks arg.
+    const blocks = nextEntities.filter(e => e.type === EntityType.BLOCK && !blocksToDestroy.has(e.id));
+
     const finalEntities: GameEntity[] = [];
 
     nextEntities.forEach(entity => {
+        // Skip destroyed blocks
+        if (entity.type === EntityType.BLOCK && blocksToDestroy.has(entity.id)) {
+            return;
+        }
+
         // --- IMMUTABLE OBJECTS ---
         if (entity.type === EntityType.WALLET || entity.type === EntityType.BLOCK) {
             finalEntities.push(entity);
@@ -647,32 +672,25 @@ export const updateWorldState = (
         
         // --- INTRUDER LOGIC UPDATE ---
         if (entity.type === EntityType.INTRUDER && entity.intruderAttributes) {
-            // Check if this intruder is fully dead (explosion finished)
+            // Check if dying
             if (entity.intruderAttributes.isDying) {
                 const deathTime = entity.intruderAttributes.deathTimestamp || 0;
                 if (now - deathTime > GAME_CONFIG.INTRUDER.EXPLOSION_DURATION_MS) {
-                     // Explosion finished, remove entity
-                     Logger.log(
-                        EventType.INTRUDER_ELIMINATED,
-                        EventCategory.THREAT,
-                        EventSeverity.INFO,
-                        { id: entity.id, status: 'DESTROYED' }
-                     );
-                     return; // Skip adding to finalEntities
+                     return; 
                 }
             }
             
-            // Check if this intruder just got killed by a bot finish
+            // Check if killed by bot
             if (dyingIntruderIds.has(entity.id) && !entity.intruderAttributes.isDying) {
                 entity.intruderAttributes.isDying = true;
                 entity.intruderAttributes.deathTimestamp = now;
-                entity.intruderAttributes.state = 'seeking'; // Reset state logic
+                entity.intruderAttributes.state = 'seeking'; 
             }
             
-            // Update engagement status
+            // Update combat engagement status
             entity.intruderAttributes.isEngaged = engagedIntruderIds.has(entity.id);
 
-            const updatedIntruder = processIntruder(entity, now);
+            const updatedIntruder = processIntruder(entity, blocks, now);
             finalEntities.push(updatedIntruder);
             return;
         }
@@ -687,25 +705,22 @@ export const updateWorldState = (
 
         if (entity.type === EntityType.PERSON && entity.attributes) {
             
-            // Check if this bot just finished fighting
+            // Reset bot if combat finished
             if (botsToReset.has(entity.id)) {
                 entity.attributes.estado = 'ocioso';
                 entity.attributes.combatEndTime = undefined;
                 entity.attributes.combatTargetId = undefined;
                 entity.attributes.combatTargetPosition = undefined;
                 
-                // Deduct energy from BOT (Battery) on kill (combat success)
                 entity.attributes.energia = Math.max(0, entity.attributes.energia - 1);
-                
-                // Deduct energy from PLAYER (Mana/Points) on kill success
-                // FIXED: Use Config Constant
                 playerEnergyConsumed += GAME_CONFIG.COMBAT.KILL_COST;
             }
 
             const shouldRemove = processDeathLifecycle(entity, entity.attributes, now);
             
             if (!shouldRemove) {
-                const updatedBot = processBioBot(entity, lands, now, speed, interactionRadius);
+                // Pass ALL entities so it can find blocks to collide with
+                const updatedBot = processBioBot(entity, nextEntities.filter(e => !blocksToDestroy.has(e.id)), now, speed, interactionRadius);
                 finalEntities.push(updatedBot);
             }
             return;

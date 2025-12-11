@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Download, Share, PlusSquare, X } from 'lucide-react';
+import { Download, Share, PlusSquare, X, RefreshCcw } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -11,6 +11,8 @@ export const InstallPWA: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
 
   useEffect(() => {
     // Detect iOS
@@ -20,25 +22,63 @@ export const InstallPWA: React.FC = () => {
     // Check if already in standalone mode (installed)
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
 
-    // Show button by default if not installed (we will hide it only if we confirm it's installed)
+    // Show button by default if not installed
     if (!isStandalone) {
         setIsVisible(true);
     }
 
+    // Capture install prompt
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setIsVisible(true);
     };
 
+    // Listen for custom update event from index.html
+    const handleUpdateFound = (e: CustomEvent<ServiceWorkerRegistration>) => {
+        console.log("InstallPWA: Update detected via event");
+        setUpdateAvailable(true);
+        setRegistration(e.detail);
+        setIsVisible(true); // Ensure button shows up even if installed
+    };
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    // @ts-ignore - Custom event logic
+    window.addEventListener('sw-update-found', handleUpdateFound);
+
+    // Initial check for waiting worker if event missed
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration()
+            .then(reg => {
+                if (reg && reg.waiting) {
+                    setUpdateAvailable(true);
+                    setRegistration(reg);
+                    setIsVisible(true);
+                }
+            })
+            .catch(err => {
+                // Handle origin mismatch errors in preview environments
+                console.warn("Service Worker access failed (likely environment restriction):", err);
+            });
+    }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      // @ts-ignore
+      window.removeEventListener('sw-update-found', handleUpdateFound);
     };
   }, []);
 
-  const handleInstallClick = async () => {
+  const handleClick = async () => {
+    // Priority 1: Update Available
+    if (updateAvailable && registration && registration.waiting) {
+        // Send message to SW to skip waiting and reload
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        // The controllerchange event in index.html will handle the reload
+        return;
+    }
+
+    // Priority 2: Install
     if (deferredPrompt) {
       // Auto install supported (Chrome/Android/Edge)
       await deferredPrompt.prompt();
@@ -60,11 +100,24 @@ export const InstallPWA: React.FC = () => {
     <>
       <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-fade-in-down">
         <button
-          onClick={handleInstallClick}
-          className="flex items-center gap-2 bg-slate-900/90 backdrop-blur-md border border-tech-cyan/50 text-tech-cyan px-4 py-2 rounded-full shadow-[0_0_15px_rgba(6,182,212,0.4)] hover:bg-tech-cyan hover:text-black transition-all duration-300 font-mono text-xs font-bold tracking-widest group"
+          onClick={handleClick}
+          className={`flex items-center gap-2 backdrop-blur-md border px-4 py-2 rounded-full shadow-[0_0_15px_rgba(6,182,212,0.4)] transition-all duration-300 font-mono text-xs font-bold tracking-widest group
+            ${updateAvailable 
+                ? 'bg-neon-green/90 border-neon-green/50 text-black hover:bg-neon-green hover:scale-105' 
+                : 'bg-slate-900/90 border-tech-cyan/50 text-tech-cyan hover:bg-tech-cyan hover:text-black'
+            }`}
         >
-          <Download size={14} className="group-hover:animate-bounce" />
-          <span>INSTALAR APP</span>
+          {updateAvailable ? (
+              <>
+                <RefreshCcw size={14} className="group-hover:animate-spin" />
+                <span>ACTUALIZAR VERSIÓN</span>
+              </>
+          ) : (
+              <>
+                <Download size={14} className="group-hover:animate-bounce" />
+                <span>DESCARGAR JUEGO</span>
+              </>
+          )}
         </button>
       </div>
 

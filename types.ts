@@ -36,8 +36,9 @@ export interface BlockAttributes {
 }
 
 export interface IntruderAttributes {
-    state: 'seeking' | 'attacking';
-    targetId: string; // Usually the Core Wallet ID
+    state: 'seeking' | 'attacking' | 'attacking_structure'; // Added attacking_structure state
+    targetId: string; // Usually the Core Wallet ID or Block ID
+    attackStartTime?: number; // Timestamp when attack on structure started
     tentaclePhase: number; // For animation
     isEngaged?: boolean; // Stopped by combat
     isDying?: boolean; // Exploding sequence
@@ -106,66 +107,3 @@ export interface GameState {
 
 export const INITIAL_POINTS = 50;
 export const ACTION_COST = 10;
-
-// --- KAMI-LOG SYSTEM TYPES ---
-
-export enum EventType {
-  BIOBOT_CREATED = 'BIOBOT_CREATED',
-  BIOBOT_DEATH = 'BIOBOT_DEATH',
-  BIOBOT_STATE_CHANGE = 'BIOBOT_STATE_CHANGE',
-  LAND_CREATED = 'LAND_CREATED',
-  LAND_DECAYED = 'LAND_DECAYED',
-  LAND_WATERED = 'LAND_WATERED',
-  BLOCK_PLACED = 'BLOCK_PLACED', 
-  USER_ACTION = 'USER_ACTION',
-  SYSTEM_ALERT = 'SYSTEM_ALERT',
-  INTRUDER_SPAWN = 'INTRUDER_SPAWN', // New
-  SECURITY_BREACH = 'SECURITY_BREACH', // New
-  COMBAT_STARTED = 'COMBAT_STARTED',
-  INTRUDER_ELIMINATED = 'INTRUDER_ELIMINATED'
-}
-
-export enum EventCategory {
-  LIFECYCLE = 'LIFECYCLE',
-  ECONOMY = 'ECONOMY',
-  SYSTEM = 'SYSTEM',
-  USER = 'USER',
-  CONSTRUCTION = 'CONSTRUCTION',
-  THREAT = 'THREAT' // New Category
-}
-
-export enum EventSeverity {
-  INFO = 'INFO',
-  WARNING = 'WARNING',
-  CRITICAL = 'CRITICAL'
-}
-
-export interface LogEvent {
-  id: string;
-  timestamp: number;
-  type: EventType;
-  category: EventCategory;
-  severity: EventSeverity;
-  payload: any;
-}
-
-export interface LogSummary {
-  batchId: string;
-  timeRange: { start: number; end: number };
-  metrics: {
-    eventsProcessed: number;
-    criticalEvents: number;
-    typesCount: Record<string, number>;
-  };
-}
-
-export interface KamiLogDatabase {
-  metadata: {
-    version: string;
-    sessionId: string;
-    createdAt: number;
-    exportTime?: number;
-  };
-  shortTermMemory: LogEvent[];
-  longTermMemory: LogSummary[];
-}

@@ -1,7 +1,6 @@
+
 import { GameState } from '../types';
 import { LOCAL_STORAGE_KEY } from '../constants';
-import { Logger } from './LoggerService';
-import { EventType, EventCategory, EventSeverity } from '../types';
 
 export class StorageService {
     
@@ -16,12 +15,6 @@ export class StorageService {
             return true;
         } catch (error) {
             console.error("Failed to save game:", error);
-            Logger.log(
-                EventType.SYSTEM_ALERT, 
-                EventCategory.SYSTEM, 
-                EventSeverity.CRITICAL, 
-                { message: 'Auto-save Failed', error: String(error) }
-            );
             return false;
         }
     }

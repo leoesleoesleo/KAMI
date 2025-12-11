@@ -1,10 +1,8 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { PlayerState, GameEntity, Gender, INITIAL_POINTS, ACTION_COST, EntityType, BlockType } from '../types';
-import { Bot, Database, Zap, Pickaxe, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle, HardDrive, LogOut, RotateCcw, HeartPulse, ArrowRightLeft, Wallet, Hammer, Shield, Lock, Box, ChevronUp, Ghost, Pause, Play, Settings, Save, Swords } from 'lucide-react';
+import { Bot, Database, Zap, Pickaxe, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle, HardDrive, LogOut, RotateCcw, HeartPulse, ArrowRightLeft, Wallet, Hammer, Shield, Lock, Box, ChevronUp, Ghost, Pause, Play, Settings, Save, Swords, Share2, Link, Globe } from 'lucide-react';
 import { createPersonJSON, getRandomGender } from '../services/gameService';
 import { GAME_CONFIG } from '../gameConfig';
-import { LiveConsole } from './LiveConsole';
 import { Minimap } from './Minimap';
 import { StorageService } from '../services/storageService';
 
@@ -96,6 +94,9 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const [isPlayerProfileOpen, setPlayerProfileOpen] = useState(false);
   const [redeemCode, setRedeemCode] = useState('');
 
+  // Share Modal
+  const [isShareModalOpen, setShareModalOpen] = useState(false);
+
   // Chat State
   const [isChatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -122,6 +123,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
           setModalOpen(false);
           setToolsModalOpen(false);
           setPlayerProfileOpen(false);
+          setShareModalOpen(false);
           setChatOpen(false);
           setActiveMenu(null);
       }
@@ -305,6 +307,65 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       } else {
           alert("Código de acceso denegado");
       }
+  };
+
+  const handleShareGame = async () => {
+      const shareData = {
+          title: 'BioBots: Génesis Evolutiva',
+          text: '¡Únete a la simulación! Gestiona BioBots, mina Criptomonedas y evoluciona en este universo digital. 🤖⚡',
+          url: window.location.href
+      };
+
+      // Try Native Share First (Mobile/Tablet)
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+          try {
+              await navigator.share(shareData);
+              // Reward only if promise resolves (user actually shared)
+              onBuyMana(100);
+              setShowSuccessMana(true);
+              setTimeout(() => setShowSuccessMana(false), 3000);
+          } catch (err) {
+              // If failed or cancelled, we fallback to the manual modal
+              // This ensures desktop users or cancellations still see options
+              setShareModalOpen(true);
+          }
+      } else {
+          // Desktop / Fallback -> Open Modal
+          setShareModalOpen(true);
+      }
+  };
+
+  const handleManualShare = (platform: 'whatsapp' | 'facebook' | 'twitter' | 'copy') => {
+      const url = window.location.href;
+      const text = '¡Únete a la simulación! Gestiona BioBots, mina Criptomonedas y evoluciona en este universo digital. 🤖⚡';
+      
+      let shareUrl = '';
+
+      switch (platform) {
+          case 'whatsapp':
+              shareUrl = `https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`;
+              break;
+          case 'facebook':
+              shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+              break;
+          case 'twitter':
+              shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+              break;
+          case 'copy':
+              navigator.clipboard.writeText(`${text}\n${url}`);
+              alert("¡Enlace copiado al portapapeles!");
+              break;
+      }
+
+      if (platform !== 'copy') {
+          window.open(shareUrl, '_blank');
+      }
+
+      // Grant Reward
+      onBuyMana(100);
+      setShareModalOpen(false);
+      setShowSuccessMana(true);
+      setTimeout(() => setShowSuccessMana(false), 3000);
   };
 
   const handleExchangeCrypto = (amount: number) => {
@@ -747,6 +808,65 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
           </div>
       )}
 
+      {/* Manual Share Modal */}
+      {isShareModalOpen && (
+          <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/90 backdrop-blur-md pointer-events-auto p-4">
+              <div className="bg-slate-900 rounded-xl p-6 w-full max-w-sm shadow-[0_0_50px_rgba(59,130,246,0.3)] border border-blue-500/50 relative animate-pop-in">
+                  <button onClick={() => setShareModalOpen(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
+                      <X size={20} />
+                  </button>
+                  
+                  <div className="flex flex-col items-center mb-6">
+                      <Share2 size={32} className="text-blue-400 mb-2" />
+                      <h3 className="font-tech text-xl font-bold text-white tracking-widest uppercase">COMPARTIR SISTEMA</h3>
+                      <p className="text-xs text-gray-400 text-center mt-1">Selecciona una red para transmitir los datos y recibir tu recompensa.</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                      {/* WhatsApp */}
+                      <button 
+                        onClick={() => handleManualShare('whatsapp')}
+                        className="flex flex-col items-center gap-2 p-4 bg-green-900/20 border border-green-700 rounded-lg hover:bg-green-800/30 transition-all hover:scale-105"
+                      >
+                          <MessageCircle size={24} className="text-green-400" />
+                          <span className="text-sm font-bold text-green-100">WhatsApp</span>
+                      </button>
+
+                      {/* Facebook */}
+                      <button 
+                        onClick={() => handleManualShare('facebook')}
+                        className="flex flex-col items-center gap-2 p-4 bg-blue-900/20 border border-blue-700 rounded-lg hover:bg-blue-800/30 transition-all hover:scale-105"
+                      >
+                          <Globe size={24} className="text-blue-400" />
+                          <span className="text-sm font-bold text-blue-100">Facebook</span>
+                      </button>
+
+                      {/* Twitter */}
+                      <button 
+                        onClick={() => handleManualShare('twitter')}
+                        className="flex flex-col items-center gap-2 p-4 bg-sky-900/20 border border-sky-700 rounded-lg hover:bg-sky-800/30 transition-all hover:scale-105"
+                      >
+                          <Send size={24} className="text-sky-400" />
+                          <span className="text-sm font-bold text-sky-100">Twitter / X</span>
+                      </button>
+
+                      {/* Copy Link */}
+                      <button 
+                        onClick={() => handleManualShare('copy')}
+                        className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-600 rounded-lg hover:bg-gray-700 transition-all hover:scale-105"
+                      >
+                          <Link size={24} className="text-gray-300" />
+                          <span className="text-sm font-bold text-gray-200">Copiar Link</span>
+                      </button>
+                  </div>
+
+                  <div className="text-center text-[10px] text-neon-green font-mono animate-pulse">
+                      RECOMPENSA ACTIVA: +100 ENERGÍA
+                  </div>
+              </div>
+          </div>
+      )}
+
       {/* Player Profile Modal */}
       {isPlayerProfileOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto p-4">
@@ -870,6 +990,15 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                                   EJECUTAR
                               </button>
                           </div>
+
+                          {/* SHARE BUTTON */}
+                          <button
+                                onClick={handleShareGame}
+                                className="w-full mt-3 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-400/50 hover:border-blue-400 text-white py-3 rounded-lg flex items-center justify-center gap-2 font-bold font-tech tracking-wider text-xs md:text-sm shadow-[0_0_15px_rgba(59,130,246,0.2)] hover:shadow-[0_0_25px_rgba(59,130,246,0.5)] transition-all group"
+                          >
+                                <Share2 size={18} className="text-blue-400 group-hover:text-white transition-colors" />
+                                COMPARTIR JUEGO PARA ADQUIRIR ENERGÍA (+100⚡)
+                          </button>
                       </div>
                   </div>
               </div>
@@ -1066,52 +1195,6 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         </div>
       )}
 
-      {/* Chat Modal */}
-      {isChatOpen && selectedEntity && (
-        <div className="pointer-events-auto absolute left-4 md:left-24 bottom-24 md:bottom-24 w-[calc(100%-2rem)] md:w-80 h-80 md:h-96 bg-slate-900/95 backdrop-blur-xl rounded-xl shadow-2xl border border-tech-cyan/40 flex flex-col overflow-hidden z-50">
-            {/* Header */}
-            <div className="p-3 bg-slate-950 text-white flex justify-between items-center border-b border-slate-800">
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded bg-slate-800 overflow-hidden border border-slate-600">
-                        <img src={selectedEntity.avatarUrl} className="w-full h-full object-cover" />
-                    </div>
-                    <span className="font-mono font-bold text-sm text-tech-cyan">{selectedEntity.attributes?.nombre}</span>
-                </div>
-                <button onClick={closeChat} className="text-gray-500 hover:text-white"><X size={18} /></button>
-            </div>
-            
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900/50 font-mono">
-                {chatMessages.map((msg, idx) => (
-                    <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[85%] p-2 rounded-lg text-xs md:text-sm ${msg.sender === 'user' ? 'bg-tech-cyan/20 text-tech-cyan border border-tech-cyan/50 rounded-tr-none' : 'bg-slate-800 border border-slate-700 text-gray-300 rounded-tl-none'}`}>
-                            {msg.text}
-                        </div>
-                    </div>
-                ))}
-                <div ref={chatEndRef} />
-            </div>
-
-            {/* Input Area */}
-            <div className="p-3 border-t border-slate-800 bg-slate-950 flex gap-2">
-                <input 
-                    type="text" 
-                    value={currentMessage}
-                    onChange={(e) => setCurrentMessage(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                    placeholder="Comando de texto..."
-                    className="flex-1 bg-slate-900 rounded border border-slate-700 px-3 py-2 text-xs md:text-sm text-white outline-none focus:border-tech-cyan font-mono"
-                />
-                <button 
-                    onClick={handleSendMessage}
-                    className="bg-tech-cyan/20 border border-tech-cyan text-tech-cyan p-2 rounded hover:bg-tech-cyan hover:text-black transition-colors"
-                >
-                    <Send size={16} />
-                </button>
-            </div>
-        </div>
-      )}
-
       {/* NEW: Minecraft-Inspired Action Dock (Left Side) */}
       <div className="pointer-events-auto absolute left-4 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 z-30"> 
           
@@ -1286,11 +1369,6 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       {/* MINIMAP */}
       <div className="pointer-events-auto absolute right-4 bottom-32 md:bottom-32 z-30">
         <Minimap entities={entities} />
-      </div>
-
-      {/* LIVE CONSOLE INTEGRATION */}
-      <div className="pointer-events-auto relative z-50">
-          <LiveConsole />
       </div>
 
     </div>
