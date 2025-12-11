@@ -586,14 +586,20 @@ export const processBioBot = (
     };
 };
 
+export interface WorldUpdateResult {
+    entities: GameEntity[];
+    playerEnergyConsumed: number;
+}
+
 export const updateWorldState = (
     entities: GameEntity[], 
     speed: number, 
     interactionRadius: number,
     overrideNow?: number
-): GameEntity[] => {
+): WorldUpdateResult => {
     
     const now = overrideNow || Date.now();
+    let playerEnergyConsumed = 0;
     
     // First, identify combat resolution needs
     // We need to know which intruders are being targeted and if they die
@@ -687,6 +693,13 @@ export const updateWorldState = (
                 entity.attributes.combatEndTime = undefined;
                 entity.attributes.combatTargetId = undefined;
                 entity.attributes.combatTargetPosition = undefined;
+                
+                // Deduct energy from BOT (Battery) on kill (combat success)
+                entity.attributes.energia = Math.max(0, entity.attributes.energia - 1);
+                
+                // Deduct energy from PLAYER (Mana/Points) on kill success
+                // FIXED: Use Config Constant
+                playerEnergyConsumed += GAME_CONFIG.COMBAT.KILL_COST;
             }
 
             const shouldRemove = processDeathLifecycle(entity, entity.attributes, now);
@@ -701,7 +714,10 @@ export const updateWorldState = (
         finalEntities.push(entity);
     });
 
-    return finalEntities;
+    return {
+        entities: finalEntities,
+        playerEnergyConsumed
+    };
 };
 
 export const updateEntityPosition = (entity: GameEntity, allEntities: GameEntity[], speed: number, radius: number): GameEntity => {

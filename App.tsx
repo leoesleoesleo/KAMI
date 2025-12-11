@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { StartScreen } from './components/StartScreen';
 import { WorldCanvas } from './components/WorldCanvas';
@@ -8,7 +7,7 @@ import { MusicPlayer } from './components/MusicPlayer';
 import { InstallPWA } from './components/InstallPWA';
 import { LoadingScreen } from './components/LoadingScreen';
 import { useGameLoop } from './hooks/useGameLoop';
-import { createPersonEntity, createLandEntity, createWalletEntity, createBlockEntity, createGhostNode, ensureOutsideWallet, createIntruderEntity } from './services/gameService';
+import { createPersonEntity, createLandEntity, createWalletEntity, createBlockEntity, createGhostNode, ensureOutsideWallet, createIntruderEntity, updateWorldState } from './services/gameService';
 import { RuntimeTestRunner } from './services/RuntimeTestRunner';
 import { Logger } from './services/LoggerService';
 import { StorageService } from './services/storageService';
@@ -41,6 +40,9 @@ function App() {
   const [pendingTotalCrypto, setPendingTotalCrypto] = useState(0); // New State for floating pending crypto
   const [showLevelBanner, setShowLevelBanner] = useState<string | null>(null);
   
+  // New state to signal interface to close all modals
+  const [closeModalsTrigger, setCloseModalsTrigger] = useState(0);
+
   const [gameState, setGameState] = useState<GameState>({
     isPlaying: false,
     isPaused: false,
@@ -176,8 +178,51 @@ function App() {
       return () => clearTimeout(timerId);
   }, [isPlaying, gameState.level, gameState.isPaused]);
 
+  // --- PERIODIC INTRUDER SPAWNER (WAVE LOGIC) ---
+  useEffect(() => {
+      if (!isPlaying) return;
 
-  // --- LEVEL UP LOGIC & INTRUDER SPAWNING ---
+      const waveInterval = setInterval(() => {
+          if (gameStateRef.current.isPaused) return;
+
+          const currentLevel = gameStateRef.current.level;
+          // Count active bots (alive)
+          const activeBots = gameStateRef.current.entities.filter(
+              e => e.type === EntityType.PERSON && e.attributes?.estado !== 'muerto'
+          ).length;
+
+          // Logic: Spawn Count = Level * Active Bots
+          const spawnCount = currentLevel * activeBots;
+
+          if (spawnCount > 0) {
+              const newIntruders: GameEntity[] = [];
+              for (let i = 0; i < spawnCount; i++) {
+                  newIntruders.push(createIntruderEntity());
+              }
+
+              setGameState(prev => ({
+                  ...prev,
+                  entities: [...prev.entities, ...newIntruders]
+              }));
+
+              Logger.log(
+                  EventType.INTRUDER_SPAWN,
+                  EventCategory.THREAT,
+                  EventSeverity.WARNING,
+                  { 
+                      message: 'PERIODIC WAVE INBOUND', 
+                      count: spawnCount, 
+                      formula: `Lvl ${currentLevel} * ${activeBots} Bots` 
+                  }
+              );
+          }
+
+      }, 60000); // Runs every 60 seconds (1 minute)
+
+      return () => clearInterval(waveInterval);
+  }, [isPlaying]);
+
+  // --- LEVEL UP LOGIC & INITIAL INTRUDER SPAWNING ---
   useEffect(() => {
       if (!isPlaying) return;
       
@@ -209,26 +254,26 @@ function App() {
               setShowLevelBanner(null);
           }, 3000); 
       }
-
-      // --- INTRUDER SPAWN LOGIC (NOW STARTS AT LEVEL 1) ---
-      // We check nextLevel >= 1 to ensure it triggers on game start or level up
+      
+      // Note: Initial spawn logic kept for game start flavor, but periodic logic handles the main difficulty curve now.
       if (nextLevel >= 1 && !gameState.hasSpawnedIntruders) {
-          // Default minimum if no bots exist yet (e.g. game start)
+          // Minimal initial spawn just to introduce the mechanic if no bots exist yet
           const activeBots = Math.max(1, gameState.entities.filter(e => e.type === EntityType.PERSON && e.attributes?.estado !== 'muerto').length);
-          const intruderCount = Math.max(2, Math.floor(activeBots * GAME_CONFIG.INTRUDER.SPAWN_RATIO));
+          // Just a small starter pack, distinct from the periodic wave
+          const intruderCount = Math.max(1, Math.floor(activeBots * 0.5)); 
           
-          Logger.log(EventType.SYSTEM_ALERT, EventCategory.THREAT, EventSeverity.WARNING, { message: `WARNING: DETECTED ${intruderCount} INTRUDERS APPROACHING FROM PERIMETER` });
+          if (intruderCount > 0) {
+            const newIntruders: GameEntity[] = [];
+            for (let i = 0; i < intruderCount; i++) {
+                newIntruders.push(createIntruderEntity());
+            }
 
-          const newIntruders: GameEntity[] = [];
-          for (let i = 0; i < intruderCount; i++) {
-              newIntruders.push(createIntruderEntity());
+            setGameState(prev => ({
+                ...prev,
+                entities: [...prev.entities, ...newIntruders],
+                hasSpawnedIntruders: true
+            }));
           }
-
-          setGameState(prev => ({
-              ...prev,
-              entities: [...prev.entities, ...newIntruders],
-              hasSpawnedIntruders: true
-          }));
       }
 
   }, [globalStats.globalScore, gameState.player.points, isPlaying, gameState.level, gameState.player.stats.cryptoSpent, gameState.entities, gameState.hasSpawnedIntruders]);
@@ -238,10 +283,14 @@ function App() {
 
   // --- MAIN GAME LOOP HOOK ---
   useGameLoop(
-      gameState.entities, 
-      (newEntities) => {
+      () => {
           setGameState(prev => {
-              const updatedEntities = typeof newEntities === 'function' ? newEntities(prev.entities) : newEntities;
+              // Execute World Physics & Logic
+              const { entities: updatedEntities, playerEnergyConsumed } = updateWorldState(
+                  prev.entities, 
+                  GAME_CONFIG.WORLD.SPEED, 
+                  GAME_CONFIG.WORLD.INTERACTION_RADIUS
+              );
               
               let totalScore = 0;
               let totalEnergy = 0;
@@ -282,20 +331,21 @@ function App() {
               // --- INTRUDER THEFT LOGIC ---
               let newCryptoSpent = prev.player.stats.cryptoSpent || 0;
               if (activeIntrudersStealing > 0) {
-                  // 5 Crypto per second. Game runs at approx 60fps? 
-                  // Let's assume loop runs frequently. 
-                  // 5 / 60 = ~0.083 per frame per intruder.
-                  // For robustness, let's use a smaller fraction assuming 60Hz update.
-                  // We add to cryptoSpent (simulate loss)
+                  // Uniform theft calculation
                   const stealAmount = (GAME_CONFIG.INTRUDER.STEAL_RATE_PER_SEC / 60) * activeIntrudersStealing;
                   newCryptoSpent += stealAmount;
               }
+              
+              // --- PLAYER ENERGY DEDUCTION (COMBAT COST) ---
+              // Subtract energyConsumed from points, ensuring we don't go below 0
+              const newPoints = Math.max(0, prev.player.points - playerEnergyConsumed);
 
               return { 
                   ...prev, 
                   entities: updatedEntities,
                   player: {
                       ...prev.player,
+                      points: newPoints,
                       stats: {
                           ...prev.player.stats,
                           cryptoSpent: newCryptoSpent
@@ -481,6 +531,11 @@ function App() {
       }, 3000);
       
       setIsTargetingRecharge(false);
+  };
+
+  const handleBackgroundClick = () => {
+      setSelectedEntity(null);
+      setCloseModalsTrigger(prev => prev + 1);
   };
 
   const handleAction = (actionType: string, payload?: any) => {
@@ -676,6 +731,7 @@ function App() {
                                 combatTargetId: (nearestIntruder as GameEntity).id,
                                 combatTargetPosition: (nearestIntruder as GameEntity).position,
                                 combatEndTime: Date.now() + finalDuration
+                                // Energy will be deducted in updateWorldState upon destruction
                             }
                         };
                     }
@@ -849,7 +905,8 @@ function App() {
     }));
   };
   
-  const availableCrypto = Math.max(0, globalStats.globalScore - (gameState.player.stats.cryptoSpent || 0));
+  // FIX: Apply Math.floor here to ensure WorldCanvas wallet UI shows whole numbers
+  const availableCrypto = Math.floor(Math.max(0, globalStats.globalScore - (gameState.player.stats.cryptoSpent || 0)));
 
   return (
     <div className="w-full h-screen overflow-hidden font-sans">
@@ -884,6 +941,7 @@ function App() {
                 walletStats={{ energy: gameState.player.points, crypto: availableCrypto }} 
                 blocksToPlace={blocksToPlace} 
                 level={gameState.level} 
+                onBackgroundClick={handleBackgroundClick} // New Handler for background clicks
               />
               <GameInterface 
                 player={gameState.player} 
@@ -908,6 +966,7 @@ function App() {
                 isPaused={gameState.isPaused} 
                 togglePause={togglePause}
                 onNodeRecharge={handleSingleNodeRecharge}
+                closeModalsTrigger={closeModalsTrigger} // Pass trigger to close modals
               />
             </div>
           )

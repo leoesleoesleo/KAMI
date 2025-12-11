@@ -1,6 +1,10 @@
 
 
 export const GAME_CONFIG = {
+  WORLD: {
+      SPEED: 0.5,
+      INTERACTION_RADIUS: 60
+  },
   LAND: {
     INITIAL_RESOURCE: 0,
     GROWTH_PER_WATER: 50,
@@ -37,7 +41,8 @@ export const GAME_CONFIG = {
       MIN_DISTANCE: 150, // Range at 0% energy
       MAX_DISTANCE: 450, // Range at 100% energy
       MIN_DURATION_MS: 5000, // Duration at 100% energy (Efficient/Fast kill)
-      MAX_DURATION_MS: 20000 // Duration at 0% energy (Inefficient/Slow kill)
+      MAX_DURATION_MS: 20000, // Duration at 0% energy (Inefficient/Slow kill)
+      KILL_COST: 1 // Cost deducted from Player Points when an intruder is destroyed
   },
   CROP: {
     CONSUMPTION_RATE: 0.08, // Significantly reduced resource consumption per tick

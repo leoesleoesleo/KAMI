@@ -34,6 +34,7 @@ interface GameInterfaceProps {
   isPaused: boolean; 
   togglePause: () => void;
   onNodeRecharge: (nodeId: string) => void; 
+  closeModalsTrigger?: number; // New trigger prop
 }
 
 interface ChatMessage {
@@ -63,7 +64,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     ghostDetectedTrigger,
     isPaused,
     togglePause,
-    onNodeRecharge
+    onNodeRecharge,
+    closeModalsTrigger
 }) => {
   const [isCreationModalOpen, setModalOpen] = useState(false);
   const [creationGender, setCreationGender] = useState<Gender>(Gender.MALE);
@@ -83,6 +85,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const [showBuildModeToast, setShowBuildModeToast] = useState(false);
   const [showCryptoErrorToast, setShowCryptoErrorToast] = useState(false);
   const [showCombatToast, setShowCombatToast] = useState(false);
+  const [showLowBatteryToast, setShowLowBatteryToast] = useState(false); // New Toast State
 
   // Tools/Build Modal
   const [isToolsModalOpen, setToolsModalOpen] = useState(false);
@@ -112,6 +115,17 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         setChatMessages([]);
     }
   }, [selectedEntity]);
+
+  // Handle global modal closing trigger
+  useEffect(() => {
+      if (closeModalsTrigger !== undefined && closeModalsTrigger > 0) {
+          setModalOpen(false);
+          setToolsModalOpen(false);
+          setPlayerProfileOpen(false);
+          setChatOpen(false);
+          setActiveMenu(null);
+      }
+  }, [closeModalsTrigger]);
 
   // When opening Creation Modal, set default gender based on 70/30 probability
   useEffect(() => {
@@ -208,10 +222,28 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   };
 
   const handleAttackProtocol = (entityId: string) => {
+      // [FIX] Validar energía del jugador (Arquitecto)
+      if (player.points <= 0) {
+          setShowManaToast(true);
+          setTimeout(() => setShowManaToast(false), 3000);
+          return;
+      }
+
       if (entityId) {
           const targetBot = entities.find(e => e.id === entityId);
-          if (!targetBot || targetBot.attributes?.estado === 'muerto') {
-             return;
+          
+          if (targetBot && targetBot.attributes) {
+              // --- CRITICAL ENERGY CHECK ---
+              // If energy is 0 or less, prevent attack immediately and show yellow alert
+              if (targetBot.attributes.energia <= 0) {
+                  setShowLowBatteryToast(true);
+                  setTimeout(() => setShowLowBatteryToast(false), 4000);
+                  return; // BLOCK ACTION
+              }
+              
+              if (targetBot.attributes.estado === 'muerto') {
+                  return;
+              }
           }
       }
 
@@ -229,6 +261,10 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       onCloseSelection();
   };
 
+  const activeBiobotsCount = entities.filter(e => e.type === EntityType.PERSON && e.attributes?.estado !== 'muerto').length;
+  // FIX: Apply Math.floor to ensure whole numbers when displayed, removing floating point jitter from theft
+  const availableCrypto = Math.floor(Math.max(0, globalStats.globalScore - (player.stats.cryptoSpent || 0)));
+
   const handleBuyBlocks = (e: React.MouseEvent) => {
       // Robust event handling
       e.preventDefault();
@@ -243,8 +279,6 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       
       const totalCost = price * blockQuantity;
       
-      const availableCrypto = Math.max(0, globalStats.globalScore - (player.stats.cryptoSpent || 0));
-
       if (totalCost > availableCrypto) {
           setShowCryptoErrorToast(true);
           setTimeout(() => setShowCryptoErrorToast(false), 3000);
@@ -368,9 +402,6 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       e.stopPropagation();
       setChatOpen(false);
   };
-
-  const activeBiobotsCount = entities.filter(e => e.type === EntityType.PERSON && e.attributes?.estado !== 'muerto').length;
-  const availableCrypto = Math.max(0, globalStats.globalScore - (player.stats.cryptoSpent || 0));
 
   const calculateOption = (percentage: number) => {
       const rawAmount = availableCrypto * percentage;
@@ -502,6 +533,17 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-yellow-500/90 text-black px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto border border-yellow-300 w-max max-w-[90vw] whitespace-normal text-center">
             <AlertTriangle size={18} className="shrink-0" />
             <span className="font-mono font-bold text-xs md:text-sm">ERROR: NO UNIDADES OPERATIVAS</span>
+        </div>
+      )}
+
+      {/* Toast Notification for Low Battery - UPDATED DESIGN */}
+      {showLowBatteryToast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-yellow-500 text-black px-6 py-4 rounded-xl shadow-[0_0_30px_rgba(234,179,8,0.6)] animate-bounce flex items-center gap-3 z-[100] pointer-events-auto border-2 border-yellow-300 w-max max-w-[90vw] whitespace-normal text-center">
+            <Battery size={24} className="shrink-0 text-black" />
+            <div className="flex flex-col">
+                <span className="font-tech font-bold text-sm md:text-base">¡ALERTA! BIOBOT SIN ENERGÍA</span>
+                <span className="font-mono text-xs font-bold">ATAQUE DENEGADO</span>
+            </div>
         </div>
       )}
 

@@ -1,4 +1,5 @@
 
+
 import { describe, it, expect } from 'vitest';
 import { 
     createPersonJSON, 
@@ -129,6 +130,16 @@ describe('KAMI Game Mechanics Engine', () => {
 
           expect(bot.attributes!.estado).toBe('ocioso');
           expect(bot.attributes!.workEndTime).toBeUndefined();
+      });
+  });
+  
+  describe('5. Combat & Global Energy Cost', () => {
+      it('debería retornar entidades y consumo de energía del jugador', () => {
+          const result = updateWorldState([], 1, 100);
+          expect(result).toHaveProperty('entities');
+          expect(result).toHaveProperty('playerEnergyConsumed');
+          expect(Array.isArray(result.entities)).toBe(true);
+          expect(typeof result.playerEnergyConsumed).toBe('number');
       });
   });
 

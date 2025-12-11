@@ -39,8 +39,14 @@ export class RuntimeTestRunner {
             const initialEnergy = entity.attributes!.energia;
             
             // Run one frame of update
-            const resultEntities = updateWorldState([entity], 1, 100);
-            const updatedEnergy = resultEntities[0].attributes!.energia;
+            const result = updateWorldState([entity], 1, 100);
+            
+            // Check if entities array exists and has elements
+            if (!result.entities || result.entities.length === 0) {
+                throw new Error("updateWorldState returned no entities in Test 2");
+            }
+
+            const updatedEnergy = result.entities[0].attributes!.energia;
             
             assert("Bio-Bot consumes energy on idle update", updatedEnergy < initialEnergy);
 
@@ -51,16 +57,23 @@ export class RuntimeTestRunner {
             const now = Date.now();
             dyingEntity.attributes!.zeroEnergySince = now - GAME_CONFIG.DEATH.TIME_TO_DIE_MS + 1000;
             
-            const stillAlive = updateWorldState([dyingEntity], 1, 100, now);
-            assert("Bot stays alive before death timer expires", stillAlive[0].attributes!.estado !== 'muerto');
+            const stillAliveResult = updateWorldState([dyingEntity], 1, 100, now);
+            if (!stillAliveResult.entities || stillAliveResult.entities.length === 0) {
+                 throw new Error("updateWorldState returned no entities in Test 3 (Alive check)");
+            }
+            assert("Bot stays alive before death timer expires", stillAliveResult.entities[0].attributes!.estado !== 'muerto');
 
             // Mock time: 1ms AFTER death threshold
             const deadTime = now + 2000; 
             const deadResult = updateWorldState([dyingEntity], 1, 100, deadTime);
-            assert("Bot dies after death timer expires", deadResult[0].attributes!.estado === 'muerto');
+            
+            if (!deadResult.entities || deadResult.entities.length === 0) {
+                 throw new Error("updateWorldState returned no entities in Test 3 (Death check)");
+            }
+
+            assert("Bot dies after death timer expires", deadResult.entities[0].attributes!.estado === 'muerto');
 
             // TEST 4: Land Decay Logic
-            // This is implicitly tested by logic but good to verify structure
             assert("Land Decay config is valid (>0)", GAME_CONFIG.LAND.DECAY_TIMEOUT_MS > 0);
 
         } catch (e) {
