@@ -203,8 +203,8 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
                     rx="14" 
                     ry="10" 
                     fill="url(#sentinelMetal)" 
-                    stroke={isEngaged ? "#ef4444" : "#cbd5e1"} 
-                    strokeWidth={isEngaged ? "2" : "1"}
+                    stroke={isEngaged ? "#ffffff" : "#cbd5e1"} 
+                    strokeWidth={isEngaged ? "3" : "1"}
                     className={isEngaged ? "animate-pulse" : ""}
                   />
                   
@@ -222,9 +222,16 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
                       <circle cx="12" cy="0" r="20" fill="none" stroke="red" strokeWidth="2" strokeDasharray="4,2" className="animate-ping opacity-60" />
                   )}
                   
-                  {/* Status Effect if Engaged (Taking Damage) */}
+                  {/* Status Effect if Engaged (Taking Damage/Combat Locked) */}
                   {isEngaged && (
-                       <circle cx="0" cy="0" r="18" fill="none" stroke="white" strokeWidth="1" className="animate-ping opacity-80" />
+                       <>
+                           {/* Force Field Hit Effect */}
+                           <circle cx="0" cy="0" r="18" fill="none" stroke="#60a5fa" strokeWidth="2" className="animate-ping opacity-80" />
+                           {/* Electric Sparks Simulation (Simple Lines) */}
+                           <path d="M-10 -10 L-15 -15" stroke="yellow" strokeWidth="2" className="animate-pulse" />
+                           <path d="M-10 10 L-15 15" stroke="yellow" strokeWidth="2" className="animate-pulse" />
+                           <path d="M10 -10 L15 -15" stroke="yellow" strokeWidth="2" className="animate-pulse" />
+                       </>
                   )}
               </svg>
           </div>
@@ -368,7 +375,7 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
                         x2={(entity.attributes.combatTargetPosition.x - entity.position.x) / (isEvolved ? 2 : 1)} 
                         y2={(entity.attributes.combatTargetPosition.y - entity.position.y) / (isEvolved ? 2 : 1)} 
                         stroke="#ef4444" 
-                        strokeWidth="3"
+                        strokeWidth={isEvolved ? "4" : "2"}
                         strokeDasharray="10,5"
                         className="animate-energy-flow opacity-80"
                      />
@@ -388,13 +395,15 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
           
           {/* MAIN BODY (RESIZED: w-9 h-9 mobile, w-11 h-11 desktop) */}
           <div 
-            className={`w-9 h-9 md:w-11 md:h-11 rounded-full shadow-[0_4px_10px_rgba(6,182,212,0.3)] bg-transparent overflow-visible transition-all duration-1000 relative z-10 ${isFighting || isPerformingSpecial ? 'shadow-[0_0_20px_rgba(239,68,68,0.6)]' : ''}`}
+            className={`w-9 h-9 md:w-11 md:h-11 rounded-full shadow-[0_4px_10px_rgba(6,182,212,0.3)] bg-transparent overflow-visible transition-all duration-1000 relative z-10 
+            ${isFighting ? 'shadow-[0_0_20px_rgba(239,68,68,0.6)] animate-[shakeCritical_0.2s_linear_infinite]' : ''}
+            ${isPerformingSpecial ? 'shadow-[0_0_40px_rgba(234,179,8,1)]' : ''}`}
             style={{ filter: getEnergyFilter(energy, isDead) }}
           >
             <img 
                 src={entity.avatarUrl} 
                 alt="Person" 
-                className={`w-full h-full object-cover drop-shadow-md ${isFighting || isPerformingSpecial ? 'animate-shake-critical' : ''}`} 
+                className={`w-full h-full object-cover drop-shadow-md`} 
             />
           </div>
 

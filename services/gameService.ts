@@ -340,8 +340,10 @@ export const processIntruder = (
     const attr = entity.intruderAttributes;
     
     // --- COMBAT FREEZE LOGIC ---
+    // If Engaged (being attacked) or Dying, FREEZE MOVEMENT but continue animation
     if (attr.isEngaged || attr.isDying) {
-        attr.tentaclePhase = (attr.tentaclePhase + 0.2) % (Math.PI * 2); 
+        // Just vibrate/animate, do not calculate new position
+        attr.tentaclePhase = (attr.tentaclePhase + 0.5) % (Math.PI * 2); // Faster vibration when engaged
         return {
             ...entity,
             intruderAttributes: attr
@@ -871,6 +873,17 @@ export const updateWorldState = (
     const blocks = entities.filter(e => e.type === EntityType.BLOCK);
     const wallet = entities.find(e => e.type === EntityType.WALLET);
 
+    // --- IDENTIFY ENGAGED INTRUDERS ---
+    // Create a Set of Intruders currently being fought by BioBots
+    const engagedIntruderIds = new Set<string>();
+    
+    // Pre-scan BioBots to find who they are fighting
+    biobots.forEach(bot => {
+        if (bot.attributes?.estado === 'peleando' && bot.attributes.combatTargetId) {
+             engagedIntruderIds.add(bot.attributes.combatTargetId);
+        }
+    });
+
     const nextEntities: GameEntity[] = [];
 
     // 1. Process BioBots
@@ -931,6 +944,15 @@ export const updateWorldState = (
             if (now - deathTime > GAME_CONFIG.INTRUDER.EXPLOSION_DURATION_MS) {
                 continue; // Remove intruder
             }
+        }
+
+        // Update 'isEngaged' state based on pre-scan
+        // If the intruder is in the set, it means a BioBot is actively fighting it.
+        // This will trigger the freeze logic in processIntruder.
+        if (engagedIntruderIds.has(intruder.id)) {
+            intruder.intruderAttributes.isEngaged = true;
+        } else {
+            intruder.intruderAttributes.isEngaged = false;
         }
 
         // Update Intruder
