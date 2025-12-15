@@ -1,6 +1,8 @@
+
+
 import React, { useState, useRef, useEffect } from 'react';
 import { PlayerState, GameEntity, Gender, INITIAL_POINTS, ACTION_COST, EntityType, BlockType } from '../types';
-import { Bot, Database, Zap, Pickaxe, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle, HardDrive, LogOut, RotateCcw, HeartPulse, ArrowRightLeft, Wallet, Hammer, Shield, Lock, Box, ChevronUp, Ghost, Pause, Play, Settings, Save, Swords, Share2, Link, Globe } from 'lucide-react';
+import { Bot, Database, Zap, Pickaxe, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle, HardDrive, LogOut, RotateCcw, HeartPulse, ArrowRightLeft, Wallet, Hammer, Shield, Lock, Box, ChevronUp, Ghost, Pause, Play, Settings, Save, Swords, Share2, Link, Globe, Users, SquareDashedMousePointer, Dna, ShieldCheck, Microscope, ScanSearch, Flame } from 'lucide-react';
 import { createPersonJSON, getRandomGender } from '../services/gameService';
 import { GAME_CONFIG } from '../gameConfig';
 import { Minimap } from './Minimap';
@@ -33,6 +35,9 @@ interface GameInterfaceProps {
   togglePause: () => void;
   onNodeRecharge: (nodeId: string) => void; 
   closeModalsTrigger?: number; // New trigger prop
+  selectedEntityIds?: string[]; // New Multi-select
+  isSelectionMode?: boolean; // New Toggle
+  toggleSelectionMode?: () => void; // New Handler
 }
 
 interface ChatMessage {
@@ -63,7 +68,10 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     isPaused,
     togglePause,
     onNodeRecharge,
-    closeModalsTrigger
+    closeModalsTrigger,
+    selectedEntityIds = [],
+    isSelectionMode = false,
+    toggleSelectionMode
 }) => {
   const [isCreationModalOpen, setModalOpen] = useState(false);
   const [creationGender, setCreationGender] = useState<Gender>(Gender.MALE);
@@ -84,6 +92,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const [showCryptoErrorToast, setShowCryptoErrorToast] = useState(false);
   const [showCombatToast, setShowCombatToast] = useState(false);
   const [showLowBatteryToast, setShowLowBatteryToast] = useState(false); // New Toast State
+  const [showSpecialAttackToast, setShowSpecialAttackToast] = useState(false);
 
   // Tools/Build Modal
   const [isToolsModalOpen, setToolsModalOpen] = useState(false);
@@ -262,6 +271,85 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       setTimeout(() => setShowCombatToast(false), 3000);
       onCloseSelection();
   };
+
+  const handleSpecialAttack = (entityId: string) => {
+      // Validaciones del ataque especial
+      if (player.points < GAME_CONFIG.COMBAT.SPECIAL_ATTACK.COST) {
+          setShowManaToast(true);
+          setTimeout(() => setShowManaToast(false), 3000);
+          return;
+      }
+      
+      onAction('SPECIAL_ATTACK', entityId);
+      
+      setShowSpecialAttackToast(true);
+      setTimeout(() => setShowSpecialAttackToast(false), 3000);
+      onCloseSelection();
+  };
+
+  const handleToggleCombatMode = (entityId: string) => {
+      if (!selectedEntity || !selectedEntity.attributes) return;
+      const currentMode = selectedEntity.attributes.combatMode || 'hunter';
+      const newMode = currentMode === 'hunter' ? 'guardian' : 'hunter';
+      onAction('SET_COMBAT_MODE', { entityId, mode: newMode });
+  };
+
+  // --- BULK ACTION HANDLERS ---
+  const handleBulkAttack = () => {
+      if (!selectedEntityIds) return;
+      
+      const alfas = selectedEntityIds.filter(id => {
+          const e = entities.find(ent => ent.id === id);
+          return e && e.type === EntityType.PERSON && e.attributes?.sexo === Gender.MALE;
+      });
+      
+      let attacksTriggered = 0;
+      alfas.forEach(id => {
+           // We re-use logic but skip UI noise
+           const bot = entities.find(e => e.id === id);
+           if (bot && bot.attributes?.estado !== 'muerto' && bot.attributes!.energia > 0) {
+               onAction('ATTACK_INTRUDER', id);
+               attacksTriggered++;
+           }
+      });
+
+      if (attacksTriggered > 0) {
+          setShowCombatToast(true);
+          setTimeout(() => setShowCombatToast(false), 3000);
+          onCloseSelection(); // Clear selection after command
+      }
+  };
+
+  const handleBulkMine = () => {
+      if (!selectedEntityIds) return;
+      
+      const betas = selectedEntityIds.filter(id => {
+          const e = entities.find(ent => ent.id === id);
+          return e && e.type === EntityType.PERSON && e.attributes?.sexo === Gender.FEMALE;
+      });
+      
+      let workTriggered = 0;
+      betas.forEach(id => {
+           const bot = entities.find(e => e.id === id);
+           if (bot && bot.attributes?.estado !== 'muerto') {
+               // Must check mana for each? Or bulk cost?
+               // Let's assume ACTION_COST applies PER COMMAND, but since it's a bulk command...
+               // The original handleWorkProtocol checks mana. 
+               // For gameplay balance, let's charge once for the bulk order or loop?
+               // Let's loop the checkManaAndExecute inside logic would be messy.
+               // Simplified: Charge mana per unit to maintain economy balance.
+               if (player.points >= ACTION_COST) {
+                   onAction('CREATE_WORK', id);
+                   workTriggered++;
+               }
+           }
+      });
+      
+      if (workTriggered > 0) {
+          onCloseSelection();
+      }
+  };
+
 
   const activeBiobotsCount = entities.filter(e => e.type === EntityType.PERSON && e.attributes?.estado !== 'muerto').length;
   // FIX: Apply Math.floor to ensure whole numbers when displayed, removing floating point jitter from theft
@@ -474,6 +562,17 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const optionMid = calculateOption(0.3);  
   const optionLow = calculateOption(0.1);  
 
+  // Helpers for Group Selection
+  const groupSelectionCount = selectedEntityIds.length;
+  const groupAlfas = selectedEntityIds.filter(id => {
+      const e = entities.find(ent => ent.id === id);
+      return e && e.type === EntityType.PERSON && e.attributes?.sexo === Gender.MALE;
+  }).length;
+  const groupBetas = selectedEntityIds.filter(id => {
+      const e = entities.find(ent => ent.id === id);
+      return e && e.type === EntityType.PERSON && e.attributes?.sexo === Gender.FEMALE;
+  }).length;
+
   return (
     <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 md:p-6 z-20 font-sans">
       
@@ -578,6 +677,17 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         <div className="fixed top-32 left-1/2 -translate-x-1/2 bg-red-900/95 backdrop-blur text-white px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-[0_0_40px_rgba(220,38,38,0.8)] animate-pulse flex items-center gap-3 z-[65] pointer-events-auto border border-red-500 w-max max-w-[90vw] whitespace-normal text-center">
             <Swords size={24} className="shrink-0 text-red-300" />
             <span className="font-mono font-bold text-xs md:text-sm text-red-100">COMBATE INICIADO: PROTOCOLO ALFA</span>
+        </div>
+      )}
+
+      {/* Special Attack Toast */}
+      {showSpecialAttackToast && (
+        <div className="fixed top-32 left-1/2 -translate-x-1/2 bg-yellow-600/95 backdrop-blur text-white px-6 py-4 rounded-xl shadow-[0_0_60px_rgba(234,179,8,0.9)] animate-bounce flex items-center gap-4 z-[70] pointer-events-auto border-2 border-yellow-400 w-max max-w-[90vw] whitespace-normal text-center">
+            <Flame size={32} className="shrink-0 text-yellow-200 animate-pulse" />
+            <div className="flex flex-col">
+                <span className="font-tech font-black text-lg md:text-xl text-white tracking-widest drop-shadow-md">MODO TITÁN ACTIVADO</span>
+                <span className="font-mono text-xs font-bold text-yellow-200">EXTERMINIO TOTAL EN PROCESO</span>
+            </div>
         </div>
       )}
 
@@ -1005,190 +1115,364 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
           </div>
       )}
 
-      {/* Selected Entity Modal (Bottom Left) */}
-      {selectedEntity && !isChatOpen && (
+      {/* Selected Entity Modal (Bottom Left) - Either Single OR Group */}
+      {((selectedEntity && !isChatOpen) || groupSelectionCount > 1) && (
         <div className="pointer-events-auto absolute left-4 md:left-24 bottom-24 md:bottom-24 w-[calc(100%-2rem)] md:w-80 bg-slate-900/90 backdrop-blur-xl rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.5)] border border-slate-700 p-4 md:p-5 z-40">
             <button onClick={onCloseSelection} className="absolute top-2 right-2 text-gray-500 hover:text-alert-red transition-colors">
                 <X size={18} />
             </button>
             
-            {/* --- WALLET PANEL --- */}
-            {selectedEntity.type === EntityType.WALLET ? (
-                <div className="flex flex-col items-center">
-                    <div className="w-16 h-16 rounded-full border-2 border-tech-cyan bg-slate-800 flex items-center justify-center mb-3 shadow-[0_0_20px_rgba(6,182,212,0.4)] relative">
-                         <div className="absolute inset-0 border border-dashed border-white/30 rounded-full animate-spin-slow" />
-                         <Cpu size={24} className="text-tech-cyan" />
-                    </div>
-                    <h3 className="font-tech font-bold text-xl text-white tracking-widest mb-1">CORE WALLET</h3>
-                    <p className="text-[10px] text-gray-400 font-mono mb-4">SISTEMA FINANCIERO CENTRAL</p>
-                    
-                    <div className="w-full space-y-3">
-                        <div className="bg-slate-800/50 p-3 rounded-lg border border-tech-cyan/30 flex justify-between items-center">
-                            <span className="text-tech-cyan font-mono text-xs font-bold">ENERGÍA</span>
-                            <span className="text-white font-tech text-lg">{player.points}</span>
-                        </div>
-                         <div className="bg-slate-800/50 p-3 rounded-lg border border-tech-purple/30 flex justify-between items-center">
-                            <span className="text-tech-purple font-mono text-xs font-bold">CRIPTOMONEDAS</span>
-                            <span className="text-white font-tech text-lg">{availableCrypto}</span>
-                        </div>
-                    </div>
-                </div>
-            ) : (
-                /* --- STANDARD ENTITY PANEL (Person/Land) --- */
-                <>
-                    <div className="flex items-center gap-4 mb-4">
-                        <div className={`w-14 h-14 md:w-16 md:h-16 rounded-lg border border-tech-cyan shadow-lg bg-slate-800 overflow-hidden relative ${selectedEntity.attributes?.estado === 'muerto' ? 'grayscale opacity-50' : ''}`}>
-                             {selectedEntity.type === EntityType.PERSON ? (
-                                 <img src={selectedEntity.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                             ) : selectedEntity.type === EntityType.BLOCK ? (
-                                <div className="w-full h-full flex items-center justify-center bg-slate-900">
-                                    {selectedEntity.blockAttributes?.type === BlockType.FIREWALL ? <Shield size={32} className="text-gray-400" /> : <Lock size={32} className="text-yellow-600" />}
-                                </div>
-                             ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-slate-900">
-                                    <HardDrive size={32} className="text-tech-cyan" />
-                                </div>
-                             )}
-                             
-                             {selectedEntity.attributes?.estado !== 'muerto' && (
-                                 <div className="absolute bottom-0 left-0 w-full h-1 bg-tech-cyan animate-pulse" />
-                             )}
+            {groupSelectionCount > 1 ? (
+                /* --- GROUP SELECTION PANEL --- */
+                <div className="flex flex-col">
+                    <div className="flex items-center gap-4 mb-4 border-b border-slate-700 pb-2">
+                        <div className="w-12 h-12 rounded-lg border border-white/30 bg-slate-800 flex items-center justify-center">
+                            <Users size={24} className="text-white" />
                         </div>
                         <div>
-                            <h3 className="font-tech font-bold text-lg md:text-xl text-white tracking-wide">
-                                {selectedEntity.type === EntityType.LAND ? (selectedEntity.landAttributes?.isGhost ? 'GHOST NODE' : 'DATA NODE') : selectedEntity.type === EntityType.BLOCK ? 'STRUCTURE' : selectedEntity.attributes?.nombre}
+                            <h3 className="font-tech font-bold text-lg text-white tracking-wide">
+                                COMANDO GRUPAL
                             </h3>
-                            <p className="text-[10px] md:text-xs text-tech-cyan font-mono uppercase tracking-widest">
-                                {selectedEntity.type === EntityType.LAND ? `ID: ${selectedEntity.id.slice(0,6)}` : selectedEntity.type === EntityType.BLOCK ? selectedEntity.blockAttributes?.type : `${selectedEntity.attributes?.sexo} • v.${selectedEntity.attributes?.edad}.0`}
+                            <p className="text-xs text-tech-cyan font-mono uppercase tracking-widest">
+                                {groupSelectionCount} UNIDADES ACTIVAS
                             </p>
                         </div>
                     </div>
-                    
-                    {selectedEntity.type === EntityType.PERSON && selectedEntity.attributes && (
-                        <div className="space-y-2 text-xs md:text-sm text-gray-300 font-mono mb-4">
-                            <div className="flex justify-between border-b border-slate-700 pb-1">
-                                <span className="text-gray-500">Módulo:</span>
-                                <span className="font-semibold text-tech-purple">{selectedEntity.attributes.personalidad}</span>
-                            </div>
-                            <div className="flex justify-between border-b border-slate-700 pb-1">
-                                <span className="text-gray-500">Batería:</span>
-                                <span className={`font-semibold ${selectedEntity.attributes.energia > 50 ? 'text-neon-green' : 'text-alert-red'}`}>{Math.round(selectedEntity.attributes.energia)}%</span>
-                            </div>
-                            <div className="flex justify-between border-b border-slate-700 pb-1">
-                                <span className="text-gray-500">Output:</span>
-                                <span className="font-semibold text-tech-cyan flex items-center gap-1">
-                                    <BarChart3 size={14} /> {Math.floor(selectedEntity.attributes.individualScore)}
-                                </span>
-                            </div>
-                            <div className="flex justify-between border-b border-slate-700 pb-1">
-                                <span className="text-gray-500">Estado:</span>
-                                <span className="font-semibold capitalize flex items-center gap-1">
-                                    {selectedEntity.attributes.estado === 'muerto' ? (
-                                        <span className="text-pink-600 animate-pulse font-bold">FALLO CRÍTICO</span>
-                                    ) : (
-                                        <span className="text-blue-400">{selectedEntity.attributes.estado}</span>
-                                    )}
 
-                                    {selectedEntity.attributes.estado === 'trabajando' && timeLeft !== null && (
-                                        <span className="text-orange-400 font-bold ml-1 flex items-center">
-                                            <Clock size={12} className="mr-1"/> {timeLeft}s
-                                        </span>
-                                    )}
-                                </span>
+                    <div className="grid grid-cols-2 gap-2 mb-4">
+                        <div className="bg-slate-800/50 p-2 rounded border border-slate-700">
+                             <span className="text-red-400 font-bold font-mono block text-xs">ALFA (M)</span>
+                             <span className="text-white text-lg font-tech">{groupAlfas}</span>
+                        </div>
+                        <div className="bg-slate-800/50 p-2 rounded border border-slate-700">
+                             <span className="text-orange-400 font-bold font-mono block text-xs">BETA (F)</span>
+                             <span className="text-white text-lg font-tech">{groupBetas}</span>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        {groupAlfas > 0 && (
+                            <button
+                                onClick={handleBulkAttack}
+                                className="w-full bg-red-600/20 border border-red-500 text-red-400 hover:bg-red-500 hover:text-white transition-all py-3 rounded-lg flex items-center justify-center gap-2 font-bold font-tech tracking-wider text-sm"
+                            >
+                                <Swords size={18} />
+                                ESCUADRÓN ALFA: ATACAR
+                            </button>
+                        )}
+
+                        {groupBetas > 0 && (
+                            <button
+                                onClick={handleBulkMine}
+                                className="w-full bg-orange-600/20 border border-orange-500 text-orange-400 hover:bg-orange-500 hover:text-white transition-all py-3 rounded-lg flex items-center justify-center gap-2 font-bold font-tech tracking-wider text-sm"
+                            >
+                                <Pickaxe size={18} />
+                                EQUIPO BETA: MINAR
+                            </button>
+                        )}
+                    </div>
+                </div>
+            ) : (
+                /* --- SINGLE SELECTION PANEL (Existing) --- */
+                <>
+                    {/* ... (Existing Single Entity Logic) ... */}
+                    {selectedEntity && selectedEntity.type === EntityType.WALLET ? (
+                        <div className="flex flex-col items-center">
+                            <div className="w-16 h-16 rounded-full border-2 border-tech-cyan bg-slate-800 flex items-center justify-center mb-3 shadow-[0_0_20px_rgba(6,182,212,0.4)] relative">
+                                <div className="absolute inset-0 border border-dashed border-white/30 rounded-full animate-spin-slow" />
+                                <Cpu size={24} className="text-tech-cyan" />
+                            </div>
+                            <h3 className="font-tech font-bold text-xl text-white tracking-widest mb-1">CORE WALLET</h3>
+                            <p className="text-[10px] text-gray-400 font-mono mb-4">SISTEMA FINANCIERO CENTRAL</p>
+                            
+                            <div className="w-full space-y-3">
+                                <div className="bg-slate-800/50 p-3 rounded-lg border border-tech-cyan/30 flex justify-between items-center">
+                                    <span className="text-tech-cyan font-mono text-xs font-bold">ENERGÍA</span>
+                                    <span className="text-white font-tech text-lg">{player.points}</span>
+                                </div>
+                                <div className="bg-slate-800/50 p-3 rounded-lg border border-tech-purple/30 flex justify-between items-center">
+                                    <span className="text-tech-purple font-mono text-xs font-bold">CRIPTOMONEDAS</span>
+                                    <span className="text-white font-tech text-lg">{availableCrypto}</span>
+                                </div>
                             </div>
                         </div>
-                    )}
-
-                    {selectedEntity.type === EntityType.LAND && selectedEntity.landAttributes && (
-                         <div className="space-y-2 text-xs md:text-sm text-gray-300 font-mono mb-4">
-                            <div className="flex justify-between border-b border-slate-700 pb-1">
-                                <span className="text-gray-500">Recursos:</span>
-                                <span className="font-semibold text-neon-green">{Math.round(selectedEntity.landAttributes.resourceLevel)}%</span>
+                    ) : (
+                        /* --- STANDARD ENTITY PANEL (Person/Land) --- */
+                        selectedEntity && (
+                        <>
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className={`w-14 h-14 md:w-16 md:h-16 rounded-lg border border-tech-cyan shadow-lg bg-slate-800 overflow-hidden relative ${selectedEntity.attributes?.estado === 'muerto' ? 'grayscale opacity-50' : ''}`}>
+                                    {selectedEntity.type === EntityType.PERSON ? (
+                                        <img src={selectedEntity.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                                    ) : selectedEntity.type === EntityType.BLOCK ? (
+                                        <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                                            {selectedEntity.blockAttributes?.type === BlockType.FIREWALL ? <Shield size={32} className="text-gray-400" /> : <Lock size={32} className="text-yellow-600" />}
+                                        </div>
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                                            <HardDrive size={32} className="text-tech-cyan" />
+                                        </div>
+                                    )}
+                                    
+                                    {selectedEntity.attributes?.estado !== 'muerto' && (
+                                        <div className="absolute bottom-0 left-0 w-full h-1 bg-tech-cyan animate-pulse" />
+                                    )}
+                                </div>
+                                <div>
+                                    <h3 className="font-tech font-bold text-lg md:text-xl text-white tracking-wide">
+                                        {selectedEntity.type === EntityType.LAND ? (selectedEntity.landAttributes?.isGhost ? 'GHOST NODE' : 'DATA NODE') : selectedEntity.type === EntityType.BLOCK ? 'STRUCTURE' : selectedEntity.attributes?.nombre}
+                                    </h3>
+                                    <p className="text-[10px] md:text-xs text-tech-cyan font-mono uppercase tracking-widest">
+                                        {selectedEntity.type === EntityType.LAND ? `ID: ${selectedEntity.id.slice(0,6)}` : selectedEntity.type === EntityType.BLOCK ? selectedEntity.blockAttributes?.type : `${selectedEntity.attributes?.sexo} • v.${selectedEntity.attributes?.edad}.0`}
+                                    </p>
+                                </div>
                             </div>
                             
-                            {/* RECHARGE BUTTON IN NODE PROPERTIES */}
-                            <button
-                                onClick={() => {
-                                    onNodeRecharge(selectedEntity.id);
-                                    onCloseSelection(); // Auto-close modal
-                                }}
-                                disabled={isPlacingLand || isPlacingPerson || isTargetingRecharge}
-                                className="w-full bg-blue-600/20 border border-blue-500 text-blue-400 hover:bg-blue-500 hover:text-white transition-all py-3 rounded-lg flex items-center justify-center gap-2 font-bold font-tech tracking-wider text-sm shadow-[0_0_15px_rgba(59,130,246,0.3)] mt-2"
-                            >
-                                <Zap size={18} />
-                                RECARGAR ENERGÍA (-{ACTION_COST})
-                            </button>
-                         </div>
-                    )}
-
-                    {selectedEntity.type === EntityType.PERSON && selectedEntity.attributes && (
-                        <div className="flex flex-col gap-2">
-                            {/* ACTIONS ROW */}
-                            <div className="flex gap-2">
-                                <button 
-                                    onClick={openChat}
-                                    disabled={selectedEntity.attributes.estado === 'muerto'}
-                                    className="flex-1 bg-slate-800 border border-slate-600 text-gray-300 py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-tech-cyan/10 hover:border-tech-cyan hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm font-mono font-bold"
-                                >
-                                    <MessageCircle size={16} />
-                                    <span>CONSOLA</span>
-                                </button>
-
-                                {GAME_CONFIG.DEATH.ENABLE_MANUAL_KILL && selectedEntity.attributes.estado !== 'muerto' && (
-                                    <button 
-                                        onClick={handleKill}
-                                        className="w-12 bg-alert-red/10 border border-alert-red/50 text-alert-red rounded-lg flex items-center justify-center hover:bg-alert-red hover:text-white transition-all"
-                                        title="Terminar Proceso"
-                                    >
-                                        <Skull size={20} />
-                                    </button>
-                                )}
-                                
-                                {/* REVIVE BUTTON - Only visible when dead */}
-                                {selectedEntity.attributes.estado === 'muerto' && (
-                                    <button 
-                                        onClick={handleRevive}
-                                        className="flex-1 bg-neon-green/10 border border-neon-green/50 text-neon-green py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-neon-green hover:text-black transition-all text-xs md:text-sm font-mono animate-pulse"
-                                        title="Reactivar Unidad (-10 Energía)"
-                                    >
-                                        <HeartPulse size={16} />
-                                        <span>REVIVIR</span>
-                                    </button>
-                                )}
-                            </div>
-
-                            {/* PRIMARY ACTION BUTTON - CONDITIONAL BY GENDER */}
-                            {selectedEntity.attributes.estado !== 'muerto' && (
-                                <>
-                                    {selectedEntity.attributes.sexo === Gender.FEMALE ? (
-                                        // BETA: MINER BUTTON
-                                        <button
-                                            onClick={() => {
-                                                handleWorkProtocol(selectedEntity.id);
-                                                onCloseSelection(); // Auto-close modal
-                                            }}
-                                            disabled={isPlacingLand || isPlacingPerson || isTargetingRecharge}
-                                            className="w-full bg-orange-600/20 border border-orange-500 text-orange-400 hover:bg-orange-500 hover:text-white transition-all py-3 rounded-lg flex items-center justify-center gap-2 font-bold font-tech tracking-wider text-sm shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.6)]"
-                                        >
-                                            <Pickaxe size={18} />
-                                            MINAR
-                                        </button>
+                            {selectedEntity.type === EntityType.PERSON && selectedEntity.attributes && (
+                                <div className="space-y-2 text-xs md:text-sm text-gray-300 font-mono mb-4">
+                                    <div className="flex justify-between border-b border-slate-700 pb-1">
+                                        <span className="text-gray-500">Módulo:</span>
+                                        <span className="font-semibold text-tech-purple">{selectedEntity.attributes.personalidad}</span>
+                                    </div>
+                                    
+                                    {/* EVOLUTION STATS */}
+                                    <div className="flex justify-between border-b border-slate-700 pb-1">
+                                        <span className="text-gray-500 flex items-center gap-1"><Dna size={12}/> Evolución:</span>
+                                        <span className={`font-semibold ${selectedEntity.attributes.evolutionLevel > 1 ? 'text-yellow-400' : 'text-gray-400'}`}>
+                                            Nivel {selectedEntity.attributes.evolutionLevel}
+                                        </span>
+                                    </div>
+                                    {selectedEntity.attributes.sexo === Gender.MALE ? (
+                                        <>
+                                            <div className="flex justify-between border-b border-slate-700 pb-1">
+                                                <span className="text-gray-500">Bajas:</span>
+                                                <span className="font-semibold text-red-400">{selectedEntity.attributes.kills}/{GAME_CONFIG.EVOLUTION.COMBAT_THRESHOLD}</span>
+                                            </div>
+                                            {/* EVOLVED MODE DISPLAY */}
+                                            {selectedEntity.attributes.evolutionLevel > 1 && (
+                                                <div className="flex justify-between border-b border-slate-700 pb-1">
+                                                    <span className="text-gray-500">Táctica:</span>
+                                                    <span className={`font-semibold ${selectedEntity.attributes.combatMode === 'guardian' ? 'text-blue-400' : 'text-red-400'}`}>
+                                                        {selectedEntity.attributes.combatMode === 'guardian' ? 'GUARDIÁN' : 'CAZADOR'}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </>
                                     ) : (
-                                        // ALFA: GUARDIAN BUTTON
-                                        <button
-                                            onClick={() => {
-                                                handleAttackProtocol(selectedEntity.id);
-                                            }}
-                                            disabled={isPlacingLand || isPlacingPerson || isTargetingRecharge}
-                                            className="w-full bg-red-600/20 border border-red-500 text-red-400 hover:bg-red-500 hover:text-white transition-all py-3 rounded-lg flex items-center justify-center gap-2 font-bold font-tech tracking-wider text-sm shadow-[0_0_15px_rgba(220,38,38,0.3)] hover:shadow-[0_0_25px_rgba(220,38,38,0.6)]"
-                                        >
-                                            <Swords size={18} />
-                                            ATACAR
-                                        </button>
+                                        <>
+                                            <div className="flex justify-between border-b border-slate-700 pb-1">
+                                                <span className="text-gray-500">Trabajos:</span>
+                                                <span className="font-semibold text-orange-400">{selectedEntity.attributes.jobsCompleted}/{GAME_CONFIG.EVOLUTION.MINING_THRESHOLD}</span>
+                                            </div>
+                                            {/* EVOLVED BETA MODE DISPLAY */}
+                                            {selectedEntity.attributes.evolutionLevel > 1 && (
+                                                <div className="flex justify-between border-b border-slate-700 pb-1">
+                                                    <span className="text-gray-500">Operación:</span>
+                                                    <span className={`font-semibold ${selectedEntity.attributes.workMode === 'collector' ? 'text-green-400' : 'text-orange-400'}`}>
+                                                        {selectedEntity.attributes.workMode === 'collector' ? 'RECOLECTOR' : 'MINERO'}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </>
                                     )}
-                                </>
+
+                                    <div className="flex justify-between border-b border-slate-700 pb-1">
+                                        <span className="text-gray-500">Batería:</span>
+                                        <span className={`font-semibold ${selectedEntity.attributes.energia > 50 ? 'text-neon-green' : 'text-alert-red'}`}>{Math.round(selectedEntity.attributes.energia)}%</span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-slate-700 pb-1">
+                                        <span className="text-gray-500">Output:</span>
+                                        <span className="font-semibold text-tech-cyan flex items-center gap-1">
+                                            <BarChart3 size={14} /> {Math.floor(selectedEntity.attributes.individualScore)}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-slate-700 pb-1">
+                                        <span className="text-gray-500">Estado:</span>
+                                        <span className="font-semibold capitalize flex items-center gap-1">
+                                            {selectedEntity.attributes.estado === 'muerto' ? (
+                                                <span className="text-pink-600 animate-pulse font-bold">FALLO CRÍTICO</span>
+                                            ) : (
+                                                <span className="text-blue-400">{selectedEntity.attributes.estado}</span>
+                                            )}
+
+                                            {selectedEntity.attributes.estado === 'trabajando' && timeLeft !== null && (
+                                                <span className="text-orange-400 font-bold ml-1 flex items-center">
+                                                    <Clock size={12} className="mr-1"/> {timeLeft}s
+                                                </span>
+                                            )}
+                                        </span>
+                                    </div>
+                                </div>
                             )}
-                        </div>
+
+                            {selectedEntity.type === EntityType.LAND && selectedEntity.landAttributes && (
+                                <div className="space-y-2 text-xs md:text-sm text-gray-300 font-mono mb-4">
+                                    <div className="flex justify-between border-b border-slate-700 pb-1">
+                                        <span className="text-gray-500">Recursos:</span>
+                                        <span className="font-semibold text-neon-green">{Math.round(selectedEntity.landAttributes.resourceLevel)}%</span>
+                                    </div>
+                                    
+                                    {/* RECHARGE BUTTON IN NODE PROPERTIES */}
+                                    <button
+                                        onClick={() => {
+                                            onNodeRecharge(selectedEntity.id);
+                                            onCloseSelection(); // Auto-close modal
+                                        }}
+                                        disabled={isPlacingLand || isPlacingPerson || isTargetingRecharge}
+                                        className="w-full bg-blue-600/20 border border-blue-500 text-blue-400 hover:bg-blue-500 hover:text-white transition-all py-3 rounded-lg flex items-center justify-center gap-2 font-bold font-tech tracking-wider text-sm shadow-[0_0_15px_rgba(59,130,246,0.3)] mt-2"
+                                    >
+                                        <Zap size={18} />
+                                        RECARGAR ENERGÍA (-{ACTION_COST})
+                                    </button>
+                                </div>
+                            )}
+
+                            {selectedEntity.type === EntityType.PERSON && selectedEntity.attributes && (
+                                <div className="flex flex-col gap-2">
+                                    {/* ACTIONS ROW */}
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={openChat}
+                                            disabled={selectedEntity.attributes.estado === 'muerto'}
+                                            className="flex-1 bg-slate-800 border border-slate-600 text-gray-300 py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-tech-cyan/10 hover:border-tech-cyan hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-sm font-mono font-bold"
+                                        >
+                                            <MessageCircle size={16} />
+                                            <span>CONSOLA</span>
+                                        </button>
+
+                                        {GAME_CONFIG.DEATH.ENABLE_MANUAL_KILL && selectedEntity.attributes.estado !== 'muerto' && (
+                                            <button 
+                                                onClick={handleKill}
+                                                className="w-12 bg-alert-red/10 border border-alert-red/50 text-alert-red rounded-lg flex items-center justify-center hover:bg-alert-red hover:text-white transition-all"
+                                                title="Terminar Proceso"
+                                            >
+                                                <Skull size={20} />
+                                            </button>
+                                        )}
+                                        
+                                        {/* REVIVE BUTTON - Only visible when dead */}
+                                        {selectedEntity.attributes.estado === 'muerto' && (
+                                            <button 
+                                                onClick={handleRevive}
+                                                className="flex-1 bg-neon-green/10 border border-neon-green/50 text-neon-green py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-neon-green hover:text-black transition-all text-xs md:text-sm font-mono animate-pulse"
+                                                title="Reactivar Unidad (-10 Energía)"
+                                            >
+                                                <HeartPulse size={16} />
+                                                <span>REVIVIR</span>
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* PRIMARY ACTION BUTTON - CONDITIONAL BY GENDER */}
+                                    {selectedEntity.attributes.estado !== 'muerto' && (
+                                        <>
+                                            {selectedEntity.attributes.sexo === Gender.FEMALE ? (
+                                                // BETA: MINER BUTTON
+                                                <div className="space-y-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            handleWorkProtocol(selectedEntity.id);
+                                                            onCloseSelection(); // Auto-close modal
+                                                        }}
+                                                        disabled={isPlacingLand || isPlacingPerson || isTargetingRecharge}
+                                                        className="w-full bg-orange-600/20 border border-orange-500 text-orange-400 hover:bg-orange-500 hover:text-white transition-all py-3 rounded-lg flex items-center justify-center gap-2 font-bold font-tech tracking-wider text-sm shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.6)]"
+                                                    >
+                                                        <Pickaxe size={18} />
+                                                        MINAR
+                                                    </button>
+
+                                                    {/* EVOLVED BETA: TOGGLE WORK MODE */}
+                                                    {selectedEntity.attributes.evolutionLevel > 1 && (
+                                                        <button
+                                                            onClick={() => {
+                                                                const currentMode = selectedEntity.attributes?.workMode || 'miner';
+                                                                const newMode = currentMode === 'miner' ? 'collector' : 'miner';
+                                                                onAction('SET_WORK_MODE', { entityId: selectedEntity.id, mode: newMode });
+                                                            }}
+                                                            className={`w-full border py-3 rounded-lg flex items-center justify-center gap-2 font-bold font-tech tracking-wider text-sm transition-all ${
+                                                                selectedEntity.attributes.workMode === 'collector' 
+                                                                ? 'bg-green-600/20 border-green-500 text-green-400 hover:bg-green-500 hover:text-white shadow-[0_0_15px_rgba(34,197,94,0.3)]' 
+                                                                : 'bg-orange-900/20 border-orange-700 text-orange-400 hover:bg-orange-800 hover:text-white'
+                                                            }`}
+                                                        >
+                                                            {selectedEntity.attributes.workMode === 'collector' ? (
+                                                                <>
+                                                                    <ScanSearch size={18} /> MODO: RECOLECTOR
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Microscope size={18} /> MODO: MINERO
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                // ALFA: GUARDIAN BUTTON
+                                                <div className="space-y-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            handleAttackProtocol(selectedEntity.id);
+                                                        }}
+                                                        disabled={isPlacingLand || isPlacingPerson || isTargetingRecharge}
+                                                        className="w-full bg-red-600/20 border border-red-500 text-red-400 hover:bg-red-500 hover:text-white transition-all py-3 rounded-lg flex items-center justify-center gap-2 font-bold font-tech tracking-wider text-sm shadow-[0_0_15px_rgba(220,38,38,0.3)] hover:shadow-[0_0_25px_rgba(220,38,38,0.6)]"
+                                                    >
+                                                        <Swords size={18} />
+                                                        ATACAR
+                                                    </button>
+
+                                                    {/* EVOLVED ALFA: SPECIAL ATTACK & TOGGLE MODE */}
+                                                    {selectedEntity.attributes.evolutionLevel > 1 && (
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            {/* Toggle Mode */}
+                                                            <button
+                                                                onClick={() => {
+                                                                    const currentMode = selectedEntity.attributes?.combatMode || 'hunter';
+                                                                    const newMode = currentMode === 'hunter' ? 'guardian' : 'hunter';
+                                                                    onAction('SET_COMBAT_MODE', { entityId: selectedEntity.id, mode: newMode });
+                                                                }}
+                                                                className={`border py-3 rounded-lg flex items-center justify-center gap-1 font-bold font-tech tracking-wide text-xs transition-all ${
+                                                                    selectedEntity.attributes.combatMode === 'guardian' 
+                                                                    ? 'bg-blue-600/20 border-blue-500 text-blue-400 hover:bg-blue-500 hover:text-white' 
+                                                                    : 'bg-red-900/20 border-red-700 text-red-400 hover:bg-red-800 hover:text-white'
+                                                                }`}
+                                                            >
+                                                                {selectedEntity.attributes.combatMode === 'guardian' ? (
+                                                                    <>
+                                                                        <ShieldCheck size={14} /> MODO: GUARDIÁN
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Crosshair size={14} /> MODO: CAZADOR
+                                                                    </>
+                                                                )}
+                                                            </button>
+
+                                                            {/* SPECIAL ATTACK TITAN */}
+                                                            <button
+                                                                onClick={() => handleSpecialAttack(selectedEntity.id)}
+                                                                disabled={player.points < GAME_CONFIG.COMBAT.SPECIAL_ATTACK.COST || selectedEntity.attributes!.energia < GAME_CONFIG.COMBAT.SPECIAL_ATTACK.MIN_VITALITY}
+                                                                className={`border py-3 rounded-lg flex flex-col items-center justify-center font-bold font-tech tracking-wide text-xs transition-all relative overflow-hidden group ${
+                                                                    player.points >= GAME_CONFIG.COMBAT.SPECIAL_ATTACK.COST && selectedEntity.attributes!.energia >= GAME_CONFIG.COMBAT.SPECIAL_ATTACK.MIN_VITALITY
+                                                                    ? 'bg-yellow-600/20 border-yellow-500 text-yellow-400 hover:bg-yellow-500 hover:text-black shadow-[0_0_10px_rgba(234,179,8,0.5)]' 
+                                                                    : 'bg-gray-800 border-gray-700 text-gray-500 cursor-not-allowed opacity-60'
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-center gap-1">
+                                                                    <Flame size={14} className={player.points >= GAME_CONFIG.COMBAT.SPECIAL_ATTACK.COST ? "animate-fire" : ""} /> ATAQUE TITÁN
+                                                                </div>
+                                                                <span className="text-[9px] font-mono mt-0.5">-{GAME_CONFIG.COMBAT.SPECIAL_ATTACK.COST}⚡ | Req: 90%🔋</span>
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </>
+                        )
                     )}
                 </>
             )}
@@ -1240,6 +1524,21 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                           <div className="p-2 bg-gray-600/30 rounded text-gray-300"><Hammer size={20}/></div>
                           <span className="text-sm font-bold">Herramientas</span>
                       </button>
+
+                      {/* Toggle Selection Mode (For Mobile) */}
+                      {toggleSelectionMode && (
+                        <button 
+                            onClick={() => { toggleSelectionMode(); setActiveMenu(null); }}
+                            className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-48 mt-1 border-t border-white/10"
+                        >
+                            <div className={`p-2 rounded ${isSelectionMode ? 'bg-white text-black' : 'bg-white/10 text-gray-400'}`}>
+                                <SquareDashedMousePointer size={20}/>
+                            </div>
+                            <span className="text-sm font-bold">
+                                {isSelectionMode ? "Modo: SELECCIÓN" : "Modo: CÁMARA"}
+                            </span>
+                        </button>
+                      )}
                   </div>
               )}
           </div>

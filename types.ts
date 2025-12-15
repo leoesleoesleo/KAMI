@@ -50,13 +50,19 @@ export interface EntityAttributes {
   sexo: Gender;
   edad: number;
   energia: number; // 0-100
-  estado: 'ocioso' | 'trabajando' | 'caminando' | 'socializando' | 'alimentandose' | 'muerto' | 'peleando';
+  estado: 'ocioso' | 'trabajando' | 'caminando' | 'socializando' | 'alimentandose' | 'muerto' | 'peleando' | 'cazando' | 'recolectando'; // Added 'recolectando'
   workEndTime?: number; // Timestamp when work finishes
   personalidad: string;
   fuerza: number;
   inteligencia: number;
   individualScore: number;
   holdingCryptos: number; // New: Crypto currently carried by the bot, not yet deposited
+  // Evolution Stats
+  evolutionLevel: number; // 1 = Standard, 2 = Evolved
+  jobsCompleted: number; // Count for BETA evolution
+  kills: number; // Count for ALFA evolution
+  combatMode?: 'hunter' | 'guardian'; // New: Tactical Mode for Evolved Alfas
+  workMode?: 'miner' | 'collector'; // New: Working Mode for Evolved Betas
   // Death Mechanics
   zeroEnergySince?: number; // Timestamp when energy hit 0
   deathTimestamp?: number; // Timestamp when death occurred
@@ -64,6 +70,12 @@ export interface EntityAttributes {
   combatTargetId?: string;
   combatTargetPosition?: Vector2;
   combatEndTime?: number;
+  // Special Attacks
+  isPerformingSpecial?: boolean; // Flag for Titan Mode
+  // Work Mechanics
+  workTargetId?: string; // ID of land being targeted
+  workTargetPosition?: Vector2; // Position to move to for work
+  lastJobIncrement?: number; // New: Cooldown tracker for job increments
 }
 
 export interface GameEntity {

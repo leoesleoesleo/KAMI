@@ -40,9 +40,16 @@ export const GAME_CONFIG = {
   COMBAT: {
       MIN_DISTANCE: 150, // Range at 0% energy
       MAX_DISTANCE: 450, // Range at 100% energy
+      DEFENSE_RADIUS: 250, // Range for Guardian Mode detection
       MIN_DURATION_MS: 5000, // Duration at 100% energy (Efficient/Fast kill)
       MAX_DURATION_MS: 20000, // Duration at 0% energy (Inefficient/Slow kill)
-      KILL_COST: 1 // Cost deducted from Player Points when an intruder is destroyed
+      KILL_COST: 1, // Cost deducted from Player Points when an intruder is destroyed
+      SPECIAL_ATTACK: {
+          COST: 50,
+          MIN_VITALITY: 90,
+          DURATION_MS: 2000, // How long the giant animation lasts
+          SCALE_FACTOR: 20
+      }
   },
   CROP: {
     CONSUMPTION_RATE: 0.08, // Significantly reduced resource consumption per tick
@@ -90,5 +97,12 @@ export const GAME_CONFIG = {
           REDUCTION_MS_PER_BOT: 5000, // Reduce wait time by 5s per active bot
           MIN_HARD_CAP_MS: 30000      // Never spawn faster than every 30s
       }
+  },
+  EVOLUTION: {
+      MINING_THRESHOLD: 5, // Betas evolve after mining 5 times
+      COMBAT_THRESHOLD: 3, // Alfas evolve after killing 3 intruders
+      AGE_THRESHOLD: 20,   // Age based evolution (fallback)
+      SPEED_MULTIPLIER: 1.8, // Nearly double speed
+      SIZE_MULTIPLIER: 2.0   // Double size
   }
 };

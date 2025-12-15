@@ -1,4 +1,3 @@
-
 import React, { useRef, useState } from 'react';
 import { GameEntity, Vector2, EntityType } from '../types';
 import { WORLD_SIZE } from '../constants';
@@ -21,6 +20,9 @@ interface WorldCanvasProps {
   blocksToPlace?: number;
   level?: number; // New Level Prop
   onBackgroundClick?: () => void; // New prop for background clicks
+  selectedEntityIds?: string[];
+  onMultiSelect?: (ids: string[]) => void;
+  isSelectionMode?: boolean;
 }
 
 export const WorldCanvas: React.FC<WorldCanvasProps> = ({ 
@@ -37,7 +39,10 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
     walletStats,
     blocksToPlace,
     level = 1,
-    onBackgroundClick
+    onBackgroundClick,
+    selectedEntityIds = [],
+    onMultiSelect,
+    isSelectionMode = false
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -45,8 +50,13 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
   
   // Interaction State
   const [isPanning, setIsPanning] = useState(false);
+  const [isSelecting, setIsSelecting] = useState(false);
   const [draggingEntityId, setDraggingEntityId] = useState<string | null>(null);
   const [startPan, setStartPan] = useState<Vector2>({ x: 0, y: 0 });
+  
+  // Selection Box State
+  const [selectionStart, setSelectionStart] = useState<Vector2 | null>(null);
+  const [selectionCurrent, setSelectionCurrent] = useState<Vector2 | null>(null);
 
   const hasDraggedRef = useRef(false);
   const hasPannedRef = useRef(false); // Track if actual panning occurred
@@ -116,15 +126,29 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
     
     // Check if it's a mouse event and left click (button 0)
     // For touch, there is no 'button' property, so we proceed
-    if ('button' in e && e.button !== 0) return;
+    const isLeftClick = !('button' in e) || e.button === 0;
+    if (!isLeftClick) return;
 
     if (draggingEntityId) {
         // Entity logic handled in dragging effect
     } else {
-      setIsPanning(true);
-      hasPannedRef.current = false; // Reset pan state
       const pos = getEventPos(e);
-      setStartPan({ x: pos.x - offset.x, y: pos.y - offset.y });
+      // CHECK FOR SELECTION MODE OR SHIFT KEY
+      const shiftPressed = (e as React.MouseEvent).shiftKey;
+      
+      if (isSelectionMode || shiftPressed) {
+          setIsSelecting(true);
+          const worldPos = getWorldCoordinates(pos.x, pos.y);
+          // Store raw screen pos for drawing box on UI layer relative to viewport? 
+          // Better to store world coords if box is inside world transform, OR screen coords if overlay.
+          // Let's store SCREEN COORDS for the div overlay to avoid scale math complexity in render
+          setSelectionStart({ x: pos.x, y: pos.y });
+          setSelectionCurrent({ x: pos.x, y: pos.y });
+      } else {
+          setIsPanning(true);
+          hasPannedRef.current = false; // Reset pan state
+          setStartPan({ x: pos.x - offset.x, y: pos.y - offset.y });
+      }
     }
   };
 
@@ -167,7 +191,9 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
         return;
     }
 
-    if (isPanning) {
+    if (isSelecting && selectionStart) {
+        setSelectionCurrent({ x: pos.x, y: pos.y });
+    } else if (isPanning) {
       // Mark that we have moved (panned)
       hasPannedRef.current = true; 
       setOffset({
@@ -178,7 +204,36 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
   };
 
   const handleMouseUp = () => {
+    if (isSelecting && selectionStart && selectionCurrent && onMultiSelect) {
+        // Finalize Selection
+        // Convert screen rect to world rect
+        const startWorld = getWorldCoordinates(selectionStart.x, selectionStart.y);
+        const endWorld = getWorldCoordinates(selectionCurrent.x, selectionCurrent.y);
+
+        const minX = Math.min(startWorld.x, endWorld.x);
+        const maxX = Math.max(startWorld.x, endWorld.x);
+        const minY = Math.min(startWorld.y, endWorld.y);
+        const maxY = Math.max(startWorld.y, endWorld.y);
+
+        // Find entities inside
+        const selectedIds = entities
+            .filter(e => {
+                // Only select interactive units (Persons) or maybe Lands too?
+                // Usually RTS selects Units. Let's stick to Persons and Lands.
+                if (e.type === EntityType.WALLET || e.type === EntityType.INTRUDER) return false;
+                
+                return e.position.x >= minX && e.position.x <= maxX &&
+                       e.position.y >= minY && e.position.y <= maxY;
+            })
+            .map(e => e.id);
+
+        onMultiSelect(selectedIds);
+    }
+
     setIsPanning(false);
+    setIsSelecting(false);
+    setSelectionStart(null);
+    setSelectionCurrent(null);
     setDraggingEntityId(null);
     setTimeout(() => {
         hasDraggedRef.current = false;
@@ -192,8 +247,8 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
           onLandPlace(worldPos);
       } else {
           // Trigger background click if we didn't pan or drag
-          if (!hasPannedRef.current && !hasDraggedRef.current && onBackgroundClick) {
-              onBackgroundClick();
+          if (!hasPannedRef.current && !hasDraggedRef.current && !isSelecting) {
+              if (onBackgroundClick) onBackgroundClick();
           }
       }
   };
@@ -273,6 +328,7 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
 
   const getCursorStyle = () => {
       if (isPlacingLand || isPlacingPerson || isTargetingRecharge || (blocksToPlace && blocksToPlace > 0)) return 'cursor-crosshair';
+      if (isSelecting) return 'cursor-nwse-resize'; // Or standard pointer
       if (isPanning) return 'cursor-grabbing';
       return 'cursor-grab';
   };
@@ -287,7 +343,7 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
                 <div 
                     className="absolute inset-0 opacity-20 pointer-events-none"
                     style={{
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 1.79 4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%2364748b' fill-opacity='0.25' fill-rule='evenodd'/%3E%3C/svg%3E")`,
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%2364748b' fill-opacity='0.25' fill-rule='evenodd'/%3E%3C/svg%3E")`,
                         backgroundSize: '300px 300px'
                     }}
                 />
@@ -378,6 +434,19 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
       onTouchMove={handleMouseMove}
       onTouchEnd={handleMouseUp}
     >
+      {/* Selection Box Overlay (Screen Space) */}
+      {isSelecting && selectionStart && selectionCurrent && (
+          <div 
+            className="absolute z-50 border border-tech-cyan bg-tech-cyan/20 pointer-events-none"
+            style={{
+                left: Math.min(selectionStart.x, selectionCurrent.x),
+                top: Math.min(selectionStart.y, selectionCurrent.y),
+                width: Math.abs(selectionCurrent.x - selectionStart.x),
+                height: Math.abs(selectionCurrent.y - selectionStart.y),
+            }}
+          />
+      )}
+
       {/* World Container */}
       <div 
         className="relative origin-top-left transition-transform duration-75 ease-out will-change-transform"
@@ -397,6 +466,7 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
               onClick={handleEntityClickWrapper}
               onMouseDown={handleEntityMouseDown}
               walletStats={walletStats} // NEW: Pass Stats to Entity Node
+              isSelected={selectedEntityIds && selectedEntityIds.includes(entity.id)}
             />
             
             {/* Show Recharge Effect ONLY on the specific target node */}

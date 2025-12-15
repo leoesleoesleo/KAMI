@@ -8,14 +8,14 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "https://api.dicebear.com/9.x/shapes/png?seed=BioBots&backgroundColor=020617&shape=rectangle,line&size=192",
+      "src": "https://leoesleoesleo.github.io/imagenes/leo_santi.jpg",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/jpeg"
     },
     {
-      "src": "https://api.dicebear.com/9.x/shapes/png?seed=BioBots&backgroundColor=020617&shape=rectangle,line&size=512",
+      "src": "https://leoesleoesleo.github.io/imagenes/leo_santi.jpg",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/jpeg"
     }
   ]
 }

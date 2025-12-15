@@ -14,6 +14,9 @@ class AudioManagerService {
     private currentLevel: number = 0;
     private masterVolume: number = 0.3;
     private fadeInterval: any = null;
+    
+    // State flags to prevent race conditions
+    private isCrossfading: boolean = false;
 
     private constructor() {
         this.trackA = new Audio();
@@ -43,14 +46,16 @@ class AudioManagerService {
      */
     public unlock() {
         if (this.currentTrack && this.currentTrack.src && this.currentTrack.paused) {
-            this.currentTrack.play()
-                .then(() => console.log("[Audio] Unlocked/Resumed successfully"))
-                .catch(e => {
+            const p = this.currentTrack.play();
+            if (p !== undefined) {
+                p.then(() => console.log("[Audio] Unlocked/Resumed successfully"))
+                 .catch(e => {
                     // Ignore abort errors caused by rapid interaction
                     if (e.name !== 'AbortError') {
                         console.warn("[Audio] Unlock attempt failed:", e);
                     }
                 });
+            }
         }
     }
 
@@ -58,10 +63,6 @@ class AudioManagerService {
      * Main logic to play music for a specific level
      */
     public playLevel(level: number, force: boolean = false) {
-        // If requesting same level, same track, and it is ALREADY playing, do nothing.
-        // But if it is paused (e.g. autoplay blocked), we must try to play again.
-        if (!force && this.currentLevel === level && !this.currentTrack.paused) return;
-        
         // Determine URL
         let url = MUSIC_TRACKS_BY_LEVEL[level];
         
@@ -72,55 +73,98 @@ class AudioManagerService {
             url = MUSIC_TRACKS_BY_LEVEL[fallbackLevel];
         }
 
-        this.currentLevel = level;
+        // GUARD 1: If we are already crossfading TO this url, do nothing (let it finish)
+        if (this.isCrossfading && this.nextTrack.src && this.nextTrack.src.includes(url)) {
+            // Update level pointer just in case
+            this.currentLevel = level;
+            return;
+        }
 
-        console.log(`[Audio] Requesting Level ${level} -> ${url}`);
+        // GUARD 2: If we are currently playing this URL (and not crossfading away from it)
+        if (this.currentTrack.src && this.currentTrack.src.includes(url)) {
+             this.currentLevel = level;
+             
+             // If we were crossfading away, cancel it and stay here
+             if (this.isCrossfading) {
+                 this.cancelCrossfade();
+             }
 
-        // CASE 0: Resume if same track but paused
-        // Uses 'includes' for safer matching against CDN URLs that might have params appended
-        if (this.currentTrack.src === url || (this.currentTrack.src && this.currentTrack.src.includes(url))) {
              if (this.currentTrack.paused) {
                  this.currentTrack.volume = this.masterVolume;
-                 this.currentTrack.play()
-                    .then(() => console.log("[Audio] Resumed existing track"))
-                    .catch(e => console.warn("[Audio] Resume failed:", e));
+                 this.currentTrack.play().catch(e => {
+                     if (e.name !== 'AbortError') console.warn("[Audio] Resume failed:", e);
+                 });
+             } else {
+                 // Ensure volume is restored if we were fading out
+                 this.currentTrack.volume = this.masterVolume;
              }
              return;
         }
 
+        // Update Level State
+        this.currentLevel = level;
+        console.log(`[Audio] Requesting Level ${level} -> ${url}`);
+
         // CASE 1: First Play (Cold Start)
-        if (this.currentTrack.src === "" || this.currentTrack.src === window.location.href) {
+        if (!this.currentTrack.src || this.currentTrack.src === "" || this.currentTrack.src === window.location.href) {
             this.currentTrack.src = url;
             this.currentTrack.volume = this.masterVolume;
-            this.currentTrack.play()
-                .then(() => console.log("[Audio] Playback started successfully"))
-                .catch(e => console.warn("[Audio] Playback failed (Autoplay policy?):", e));
+            const p = this.currentTrack.play();
+            if (p !== undefined) {
+                p.then(() => console.log("[Audio] Playback started successfully"))
+                 .catch(e => {
+                     if (e.name !== 'AbortError') console.warn("[Audio] Playback failed:", e);
+                 });
+            }
             return;
         }
 
         // CASE 2: Track Change (Crossfade)
-        if (this.currentTrack.src !== url) {
-            this.performCrossfade(url);
-        }
+        this.performCrossfade(url);
+    }
+
+    private cancelCrossfade() {
+        if (this.fadeInterval) clearInterval(this.fadeInterval);
+        this.isCrossfading = false;
+        
+        // Stop next track
+        this.nextTrack.pause();
+        this.nextTrack.currentTime = 0;
+        
+        // Restore current track volume
+        this.currentTrack.volume = this.masterVolume;
     }
 
     private performCrossfade(newUrl: string) {
         console.log("[Audio] Starting Crossfade...");
         
+        // Stop any previous fade animation
+        if (this.fadeInterval) clearInterval(this.fadeInterval);
+        
+        this.isCrossfading = true;
+        
         // 1. Prepare Next Track
+        // Important: Pause before changing src to avoid "interrupted" errors on pending promises from previous interactions
+        this.nextTrack.pause();
         this.nextTrack.src = newUrl;
         this.nextTrack.volume = 0; // Start silent
         
         const playPromise = this.nextTrack.play();
         
-        // If play() throws (e.g. interaction needed), we can't crossfade properly.
         if (playPromise !== undefined) {
             playPromise.then(() => {
+                // Play started successfully, begin fade
                 this.executeFadeAnimation();
             }).catch(e => {
-                console.error("[Audio] Crossfade blocked:", e);
-                // Fallback: Just switch immediately next time user interacts (via unlock)
-                // For now, we leave the state pending
+                // If blocked by new load request (AbortError), it means another playLevel call happened.
+                // We ignore it. If blocked by Autoplay, we log warning.
+                if (e.name === 'AbortError') {
+                    console.log("[Audio] Crossfade interrupted by new request");
+                } else {
+                    console.warn("[Audio] Crossfade play blocked:", e);
+                    // Reset flag so we can try again later
+                    this.isCrossfading = false;
+                }
             });
         }
     }
@@ -138,10 +182,14 @@ class AudioManagerService {
             stepCount++;
             
             // Fade Out Current
-            this.currentTrack.volume = Math.max(0, this.masterVolume - (volStep * stepCount));
+            if (this.currentTrack) {
+                this.currentTrack.volume = Math.max(0, this.masterVolume - (volStep * stepCount));
+            }
             
             // Fade In Next
-            this.nextTrack.volume = Math.min(this.masterVolume, volStep * stepCount);
+            if (this.nextTrack) {
+                this.nextTrack.volume = Math.min(this.masterVolume, volStep * stepCount);
+            }
 
             if (stepCount >= steps) {
                 this.finalizeCrossfade();
@@ -161,8 +209,10 @@ class AudioManagerService {
         this.currentTrack = this.nextTrack;
         this.nextTrack = temp;
 
-        // Ensure volume is exact
+        // Reset state
         this.currentTrack.volume = this.masterVolume;
+        this.isCrossfading = false;
+        
         console.log("[Audio] Crossfade complete");
     }
 
@@ -173,6 +223,7 @@ class AudioManagerService {
         this.trackA.currentTime = 0;
         this.trackB.currentTime = 0;
         this.currentLevel = 0;
+        this.isCrossfading = false;
         // Reset srcs so next start is treated as cold start
         this.trackA.src = "";
         this.trackB.src = "";

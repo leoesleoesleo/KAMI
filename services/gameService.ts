@@ -1,6 +1,4 @@
 
-
-
 import { EntityAttributes, Gender, Vector2, EntityType, GameEntity, LandAttributes, BlockType } from '../types';
 import { WORLD_SIZE } from '../constants';
 import { GAME_CONFIG } from '../gameConfig';
@@ -142,7 +140,13 @@ export const createPersonJSON = (gender: Gender, customName?: string): EntityAtt
     fuerza: Math.floor(Math.random() * 10) + 1,
     inteligencia: Math.floor(Math.random() * 10) + 1,
     individualScore: 0,
-    holdingCryptos: 0 // New attribute for carry capacity
+    holdingCryptos: 0, // New attribute for carry capacity
+    // Evolution Stats
+    evolutionLevel: 1,
+    jobsCompleted: 0,
+    kills: 0,
+    combatMode: 'hunter', // Default mode for Alfas
+    workMode: 'miner' // Default mode for Betas
   };
 };
 
@@ -301,6 +305,32 @@ export const processDeathLifecycle = (entity: GameEntity, attr: EntityAttributes
     return false; 
 };
 
+// --- EVOLUTION MECHANIC ---
+const checkEvolution = (attr: EntityAttributes): void => {
+    if (attr.evolutionLevel >= 2) return; // Cap at level 2
+
+    let evolved = false;
+
+    // ALFA Trigger
+    if (attr.sexo === Gender.MALE && attr.kills >= GAME_CONFIG.EVOLUTION.COMBAT_THRESHOLD) {
+        evolved = true;
+    }
+    // BETA Trigger
+    else if (attr.sexo === Gender.FEMALE && attr.jobsCompleted >= GAME_CONFIG.EVOLUTION.MINING_THRESHOLD) {
+        evolved = true;
+    }
+    // AGE Trigger (Fallback)
+    else if (attr.edad >= GAME_CONFIG.EVOLUTION.AGE_THRESHOLD) {
+        evolved = true;
+    }
+
+    if (evolved) {
+        attr.evolutionLevel = 2;
+        // Optionally refill energy or boost max stats here
+        attr.energia = GAME_CONFIG.BIOBOT.MAX_ENERGY;
+    }
+};
+
 export const processIntruder = (
     entity: GameEntity,
     blocks: GameEntity[],
@@ -400,29 +430,26 @@ export const processBioBot = (
     entity: GameEntity, 
     entities: GameEntity[], 
     now: number, 
-    speed: number, 
+    baseSpeed: number, 
     interactionRadius: number
 ): GameEntity => {
     if (!entity.attributes) return entity;
     const attr = entity.attributes;
 
+    // --- FIX: TITAN MODE IMMOBILITY ---
+    // If performing special attack, freeze logic and movement to prevent 
+    // visual/collision glitches while the unit is giant.
+    if (attr.isPerformingSpecial) {
+        return entity;
+    }
+
     const lands = entities.filter(e => e.type === EntityType.LAND);
     const blocks = entities.filter(e => e.type === EntityType.BLOCK);
+    // Needed for hunting logic
+    const intruders = entities.filter(e => e.type === EntityType.INTRUDER);
 
     if (attr.estado === 'muerto') return entity;
 
-    // --- FIGHTING LOGIC ---
-    if (attr.estado === 'peleando') {
-        attr.energia = Math.max(0, attr.energia - GAME_CONFIG.BIOBOT.ENERGY_DECAY_WORK);
-        return {
-             ...entity,
-             attributes: attr
-        };
-    }
-
-    let newState = attr.estado;
-    let newPos = { ...entity.position };
-    
     // --- OVERLOAD MECHANIC ---
     if ((attr.holdingCryptos || 0) > 2000) {
         attr.estado = 'muerto';
@@ -433,10 +460,14 @@ export const processBioBot = (
         return { ...entity, attributes: attr };
     }
 
+    let newState: EntityAttributes['estado'] = attr.estado;
+    let newPos = { ...entity.position };
+    
     // --- ENERGY DECAY ---
     let decay = GAME_CONFIG.BIOBOT.ENERGY_DECAY_IDLE;
-    if (newState === 'trabajando') decay = GAME_CONFIG.BIOBOT.ENERGY_DECAY_WORK;
+    if (newState === 'trabajando' || newState === 'peleando') decay = GAME_CONFIG.BIOBOT.ENERGY_DECAY_WORK;
     else if (newState === 'caminando') decay = GAME_CONFIG.BIOBOT.ENERGY_DECAY_MOVE;
+    else if (newState === 'cazando' || newState === 'recolectando') decay = GAME_CONFIG.BIOBOT.ENERGY_DECAY_MOVE; // Hunting/Collecting costs movement energy
     
     attr.energia = Math.max(0, attr.energia - decay);
 
@@ -446,6 +477,10 @@ export const processBioBot = (
             newState = 'ocioso';
             attr.estado = 'ocioso';
             attr.workEndTime = undefined;
+            // Clear target after work
+            attr.workTargetId = undefined;
+            attr.workTargetPosition = undefined;
+            // Removed increment here to favor deposit-based progression
         }
     }
 
@@ -453,7 +488,16 @@ export const processBioBot = (
     let nearestLand: GameEntity | null = null;
     let minDist = Infinity;
 
+    // Determine if this bot is in STRICT COLLECTOR MODE
+    const isStrictCollector = attr.evolutionLevel > 1 && attr.sexo === Gender.FEMALE && attr.workMode === 'collector';
+
     lands.forEach(land => {
+        // STRICT FILTER: If Collector, ignore any land that is NOT a Ghost Node (System Created)
+        // This effectively hides player lands from the bot for Eating AND Working.
+        if (isStrictCollector && !land.landAttributes?.isGhost) {
+            return;
+        }
+
         const dx = land.position.x - newPos.x;
         const dy = land.position.y - newPos.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -499,11 +543,174 @@ export const processBioBot = (
         attr.estado = 'ocioso';
     }
 
-    // --- DEPOSIT LOGIC ---
+    // --- DEPOSIT & EVOLUTION CHECK LOGIC ---
     if (nearestLand && minDist < interactionRadius + 20) {
         if ((attr.holdingCryptos || 0) > 0) {
             attr.individualScore = (attr.individualScore || 0) + attr.holdingCryptos;
             attr.holdingCryptos = 0; 
+            
+            // FIX: Increment Job Count gradually during mining (cooldown 15s)
+            // This prevents "15000/5" spam but ensures progress is made before shift ends
+            const JOB_COOLDOWN = 15000; // 15 seconds
+            const lastJob = attr.lastJobIncrement || 0;
+            if (now - lastJob > JOB_COOLDOWN) {
+                 attr.jobsCompleted = (attr.jobsCompleted || 0) + 1;
+                 attr.lastJobIncrement = now;
+                 checkEvolution(attr);
+            }
+        }
+    }
+    
+    // --- AUTO-BEHAVIOR FOR EVOLVED UNITS ---
+    if (attr.evolutionLevel > 1 && (newState === 'ocioso' || newState === 'recolectando')) {
+        
+        // EVOLVED BETA: AUTO-MINE LOOP
+        if (attr.sexo === Gender.FEMALE) {
+            const workMode = attr.workMode || 'miner';
+            
+            // Search Logic
+            let targetLand: GameEntity | null = null;
+            let closestResDist = Infinity;
+            
+            // Define search radius based on mode
+            // 'miner' = Local (Player/System nodes)
+            // 'collector' = Global (Ghost nodes ONLY)
+            const searchRadius = workMode === 'collector' ? Infinity : 350;
+
+            lands.forEach(land => {
+                const props = land.landAttributes;
+                if (!props || props.resourceLevel <= 0) return;
+
+                // SPECIAL RULE FOR COLLECTOR: ONLY TARGET GHOST NODES
+                // If in collector mode and the node is NOT a ghost (created by player), ignore it.
+                if (workMode === 'collector' && !props.isGhost) return;
+
+                const dx = land.position.x - newPos.x;
+                const dy = land.position.y - newPos.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < searchRadius && dist < closestResDist) {
+                    closestResDist = dist;
+                    targetLand = land;
+                }
+            });
+
+            if (targetLand) {
+                // Determine behavior
+                if (closestResDist < interactionRadius + 20) {
+                    // Close enough to start working immediately
+                    newState = 'trabajando';
+                    attr.estado = 'trabajando';
+                    attr.workEndTime = now + GAME_CONFIG.BIOBOT.WORK_DURATION_MS;
+                    attr.workTargetId = undefined; // Cleared
+                    attr.workTargetPosition = undefined;
+                } else {
+                    // Need to travel
+                    if (workMode === 'collector') {
+                        // Explicitly set state to 'recolectando' to show intention/animation
+                        newState = 'recolectando';
+                        attr.estado = 'recolectando';
+                        attr.workTargetId = (targetLand as GameEntity).id;
+                        attr.workTargetPosition = (targetLand as GameEntity).position;
+                    } 
+                    // Implicit 'miner' idle wandering towards target is handled in movement physics below
+                }
+            } else {
+                // If in collector mode and no lands found (no ghost nodes), revert to idle
+                // It will keep searching every tick until the system spawns one.
+                if (newState === 'recolectando') {
+                    newState = 'ocioso';
+                    attr.estado = 'ocioso';
+                    attr.workTargetId = undefined;
+                    attr.workTargetPosition = undefined;
+                }
+            }
+        }
+
+        // EVOLVED ALFA: AUTO-ATTACK LOOP (CONDITIONAL ON COMBAT MODE)
+        if (attr.sexo === Gender.MALE) {
+            const combatMode = attr.combatMode || 'hunter';
+            
+            let targetIntruder: GameEntity | null = null;
+            let closestIntruderDist = Infinity;
+
+            // Mode Logic: 
+            // 'hunter': Finds closest intruder globally.
+            // 'guardian': Finds closest intruder ONLY if within DEFENSE_RADIUS.
+            
+            intruders.forEach(intruder => {
+                const dx = intruder.position.x - newPos.x;
+                const dy = intruder.position.y - newPos.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                // GUARDIAN FILTER
+                if (combatMode === 'guardian' && dist > GAME_CONFIG.COMBAT.DEFENSE_RADIUS) {
+                    return; // Ignore far intruders
+                }
+
+                if (dist < closestIntruderDist) {
+                    closestIntruderDist = dist;
+                    targetIntruder = intruder;
+                }
+            });
+
+            if (targetIntruder) {
+                newState = 'cazando';
+                attr.estado = 'cazando';
+                attr.combatTargetId = (targetIntruder as GameEntity).id;
+                attr.combatTargetPosition = (targetIntruder as GameEntity).position;
+            }
+        }
+    }
+
+    // --- HUNTING LOGIC (State: CAZANDO) ---
+    if (newState === 'cazando' && attr.combatTargetId) {
+        const targetIntruder = intruders.find(i => i.id === attr.combatTargetId);
+        
+        // If target is gone/dead, go back to idle
+        if (!targetIntruder || targetIntruder.intruderAttributes?.isDying) {
+            newState = 'ocioso';
+            attr.estado = 'ocioso';
+            attr.combatTargetId = undefined;
+            attr.combatTargetPosition = undefined;
+        } else {
+            // Update known position
+            attr.combatTargetPosition = targetIntruder.position;
+            
+            // Calculate distance
+            const dx = targetIntruder.position.x - newPos.x;
+            const dy = targetIntruder.position.y - newPos.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            // Check if Guardian should give up chase (if target moves too far)
+            if (attr.combatMode === 'guardian' && dist > GAME_CONFIG.COMBAT.DEFENSE_RADIUS * 1.5) {
+                 newState = 'ocioso';
+                 attr.estado = 'ocioso';
+                 attr.combatTargetId = undefined;
+                 attr.combatTargetPosition = undefined;
+            } else {
+
+                // Determine Dynamic Attack Range based on current energy
+                const energyPercent = Math.max(0, Math.min(1, attr.energia / 100));
+                const dynamicRange = GAME_CONFIG.COMBAT.MIN_DISTANCE + 
+                    (GAME_CONFIG.COMBAT.MAX_DISTANCE - GAME_CONFIG.COMBAT.MIN_DISTANCE) * energyPercent;
+
+                // Attack Threshold: Use a tighter range for auto-engagement via hunting
+                const engagementRange = dynamicRange * 0.8;
+
+                if (dist <= engagementRange) {
+                    // WITHIN RANGE: INITIATE COMBAT
+                    newState = 'peleando';
+                    attr.estado = 'peleando';
+                    
+                    // Calculate Combat Duration
+                    const finalDuration = GAME_CONFIG.COMBAT.MIN_DURATION_MS + 
+                        (GAME_CONFIG.COMBAT.MAX_DURATION_MS - GAME_CONFIG.COMBAT.MIN_DURATION_MS) * (1 - energyPercent);
+                    
+                    attr.combatEndTime = now + finalDuration;
+                } 
+                // Else: Movement logic below handles moving towards it
+            }
         }
     }
 
@@ -511,23 +718,70 @@ export const processBioBot = (
 
     // --- MOVEMENT PHYSICS ---
     let target: Vector2 | null = null;
-
-    if (newState === 'trabajando' && nearestLand && landHasResources) {
+    
+    // FIGHTING MOVEMENT (Combat Dance)
+    if (newState === 'peleando' && attr.combatTargetPosition) {
+        // Dynamic movement during combat
         const seed = getEntitySeed(entity.id);
-        if (minDist < interactionRadius + 50) {
-            target = {
-                x: nearestLand.position.x + Math.cos(now / 1000 + seed) * 40,
-                y: nearestLand.position.y + Math.sin(now / 1000 + seed) * 40
-            };
-        } else {
-            target = nearestLand.position;
-        }
-    } else if (isHungry && landHasResources && nearestLand) {
+        const angle = (now / 400) + seed;
+        target = {
+            x: attr.combatTargetPosition.x + Math.cos(angle) * 30, // Orbit closer
+            y: attr.combatTargetPosition.y + Math.sin(angle) * 30
+        };
+    }
+    // HUNTING MOVEMENT
+    else if (newState === 'cazando' && attr.combatTargetPosition) {
+        target = attr.combatTargetPosition;
+    }
+    // COLLECTING MOVEMENT (Global Search)
+    else if (newState === 'recolectando' && attr.workTargetPosition) {
+        target = attr.workTargetPosition;
+    }
+    // WORKING MOVEMENT
+    else if (newState === 'trabajando' && nearestLand && landHasResources) {
+        const seed = getEntitySeed(entity.id);
+        // Ensure orbit logic always applies for vitality
+        target = {
+            x: nearestLand.position.x + Math.cos(now / 800 + seed) * 45, // Slightly larger, faster orbit
+            y: nearestLand.position.y + Math.sin(now / 800 + seed) * 45
+        };
+    } 
+    // FEEDING MOVEMENT
+    else if (isHungry && landHasResources && nearestLand) {
         target = {
             x: nearestLand.position.x + (Math.random() - 0.5) * 20,
             y: nearestLand.position.y + (Math.random() - 0.5) * 20
         };
-    } else {
+    } 
+    // EVOLVED BETA SEEKING RESOURCES (Implicit Idle/Miner)
+    else if (attr.evolutionLevel > 1 && attr.sexo === Gender.FEMALE && newState === 'ocioso' && attr.workMode !== 'collector') {
+         // Find nearest resource rich land to walk to (Local Only)
+         let targetLand: GameEntity | null = null;
+         let closestResDist = Infinity;
+         lands.forEach(land => {
+            if (land.landAttributes && land.landAttributes.resourceLevel > 0) {
+                const dx = land.position.x - newPos.x;
+                const dy = land.position.y - newPos.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < closestResDist) {
+                    closestResDist = dist;
+                    targetLand = land;
+                }
+            }
+        });
+        if (targetLand) {
+            target = targetLand.position;
+        } else {
+            // Fallback to random wander if no resources
+            const time = now * 0.0005;
+            const seed = getEntitySeed(entity.id);
+            const noiseX = Math.cos(time + seed) * 100;
+            const noiseY = Math.sin(time + seed * 2) * 100;
+            target = { x: newPos.x + noiseX, y: newPos.y + noiseY };
+        }
+    }
+    // IDLE WANDER
+    else {
         const time = now * 0.0005;
         const seed = getEntitySeed(entity.id);
         const noiseX = Math.cos(time + seed) * 100;
@@ -535,15 +789,29 @@ export const processBioBot = (
         target = { x: newPos.x + noiseX, y: newPos.y + noiseY };
     }
     
-    target.x = Math.max(100, Math.min(WORLD_SIZE - 100, target.x));
-    target.y = Math.max(100, Math.min(WORLD_SIZE - 100, target.y));
+    // Ensure target is within bounds for all states except specific target tracking which might be on edge
+    if (newState !== 'cazando' && newState !== 'recolectando' && newState !== 'peleando') {
+        target.x = Math.max(100, Math.min(WORLD_SIZE - 100, target.x));
+        target.y = Math.max(100, Math.min(WORLD_SIZE - 100, target.y));
+    }
 
     const dx = target.x - newPos.x;
     const dy = target.y - newPos.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     if (dist > 1) {
-        const moveSpeed = newState === 'alimentandose' ? speed * 0.2 : speed;
+        // Boost speed based on state
+        let moveSpeed = baseSpeed;
+        if (newState === 'alimentandose') moveSpeed = baseSpeed * 0.2;
+        if (newState === 'cazando') moveSpeed = baseSpeed * 1.5; // Move faster when hunting
+        if (newState === 'peleando') moveSpeed = baseSpeed * 0.5; // Slower during combat dance
+        if (newState === 'recolectando') moveSpeed = baseSpeed * 1.3; // Move faster when actively collecting
+        
+        // EVOLUTION SPEED BOOST
+        if (attr.evolutionLevel > 1) {
+            moveSpeed *= GAME_CONFIG.EVOLUTION.SPEED_MULTIPLIER;
+        }
+
         let nextX = newPos.x + (dx / dist) * moveSpeed;
         let nextY = newPos.y + (dy / dist) * moveSpeed;
 
@@ -584,172 +852,125 @@ export const processBioBot = (
     };
 };
 
-export interface WorldUpdateResult {
-    entities: GameEntity[];
-    playerEnergyConsumed: number;
-}
-
 export const updateWorldState = (
     entities: GameEntity[], 
     speed: number, 
     interactionRadius: number,
-    overrideNow?: number
-): WorldUpdateResult => {
-    
-    const now = overrideNow || Date.now();
+    timestamp?: number
+): { entities: GameEntity[], playerEnergyConsumed: number } => {
+    const now = timestamp || Date.now();
     let playerEnergyConsumed = 0;
     
-    // Combat tracking
-    const botsToReset = new Set<string>();
-    const dyingIntruderIds = new Set<string>();
-    const engagedIntruderIds = new Set<string>();
+    // Track Intruders to be removed (killed by combat)
+    const intrudersToKill = new Set<string>();
 
-    entities.forEach(e => {
-        if (e.type === EntityType.PERSON && e.attributes?.estado === 'peleando') {
-             const targetId = e.attributes.combatTargetId;
-             if (targetId) engagedIntruderIds.add(targetId);
+    // We process lists.
+    const biobots = entities.filter(e => e.type === EntityType.PERSON);
+    const intruders = entities.filter(e => e.type === EntityType.INTRUDER);
+    const lands = entities.filter(e => e.type === EntityType.LAND);
+    const blocks = entities.filter(e => e.type === EntityType.BLOCK);
+    const wallet = entities.find(e => e.type === EntityType.WALLET);
 
-             if (e.attributes.combatEndTime && now > e.attributes.combatEndTime) {
-                 if (targetId) {
-                     dyingIntruderIds.add(targetId);
-                 }
-                 botsToReset.add(e.id);
-             }
-        }
-    });
+    const nextEntities: GameEntity[] = [];
 
-    // --- BLOCK DESTRUCTION LOGIC ---
-    const blocksToDestroy = new Set<string>();
-    
-    entities.forEach(e => {
-        if (e.type === EntityType.INTRUDER && e.intruderAttributes?.state === 'attacking_structure') {
-            const attr = e.intruderAttributes;
-            if (attr.attackStartTime && attr.targetId) {
-                // Find block config
-                const block = entities.find(b => b.id === attr.targetId);
-                if (block && block.blockAttributes) {
-                    const timeAttacking = now - attr.attackStartTime;
-                    
-                    // Check threshold based on block type (ms)
-                    const threshold = block.blockAttributes.durability;
-
-                    if (timeAttacking >= threshold) {
-                        blocksToDestroy.add(block.id);
-                    }
-                }
-            }
-        }
-    });
-
-    const nextEntities = entities.map(e => ({
-        ...e,
-        position: {...e.position},
-        attributes: e.attributes ? {...e.attributes} : undefined,
-        landAttributes: e.landAttributes ? {...e.landAttributes} : undefined,
-        intruderAttributes: e.intruderAttributes ? {...e.intruderAttributes} : undefined
-    }));
-
-    // Filter for interaction lookups
-    const lands = nextEntities.filter(e => e.type === EntityType.LAND);
-    // Note: Blocks are passed into process functions via full entity list filtering inside them or here
-    // But since we need them for collision inside processBioBot/Intruder, better pass them or let them filter.
-    // processBioBot currently filters inside. processIntruder takes blocks arg.
-    const blocks = nextEntities.filter(e => e.type === EntityType.BLOCK && !blocksToDestroy.has(e.id));
-
-    const finalEntities: GameEntity[] = [];
-
-    nextEntities.forEach(entity => {
-        // Skip destroyed blocks
-        if (entity.type === EntityType.BLOCK && blocksToDestroy.has(entity.id)) {
-            return;
+    // 1. Process BioBots
+    for (const bot of biobots) {
+        if (!bot.attributes) {
+            nextEntities.push(bot);
+            continue;
         }
 
-        // --- IMMUTABLE OBJECTS ---
-        if (entity.type === EntityType.WALLET || entity.type === EntityType.BLOCK) {
-            finalEntities.push(entity);
-            return;
+        // Death Lifecycle
+        if (processDeathLifecycle(bot, bot.attributes, now)) {
+            continue; // Entity removed (faded out)
         }
-        
-        // --- INTRUDER LOGIC UPDATE ---
-        if (entity.type === EntityType.INTRUDER && entity.intruderAttributes) {
-            // Check if dying
-            if (entity.intruderAttributes.isDying) {
-                const deathTime = entity.intruderAttributes.deathTimestamp || 0;
-                if (now - deathTime > GAME_CONFIG.INTRUDER.EXPLOSION_DURATION_MS) {
-                     return; 
-                }
+
+        // Combat Resolution
+        if (bot.attributes.estado === 'peleando' && bot.attributes.combatEndTime && now >= bot.attributes.combatEndTime) {
+            // Combat Success
+            bot.attributes.estado = 'ocioso';
+            bot.attributes.combatEndTime = undefined;
+            
+            if (bot.attributes.combatTargetId) {
+                intrudersToKill.add(bot.attributes.combatTargetId);
+                bot.attributes.kills = (bot.attributes.kills || 0) + 1;
+
+                // Evolution Trigger (Manual check as helper is not exported/accessible easily if scoped, 
+                // but checkEvolution IS in scope of this file)
+                checkEvolution(bot.attributes);
             }
             
-            // Check if killed by bot
-            if (dyingIntruderIds.has(entity.id) && !entity.intruderAttributes.isDying) {
-                entity.intruderAttributes.isDying = true;
-                entity.intruderAttributes.deathTimestamp = now;
-                entity.intruderAttributes.state = 'seeking'; 
-            }
-            
-            // Update combat engagement status
-            entity.intruderAttributes.isEngaged = engagedIntruderIds.has(entity.id);
-
-            const updatedIntruder = processIntruder(entity, blocks, now);
-            finalEntities.push(updatedIntruder);
-            return;
+            bot.attributes.combatTargetId = undefined;
+            bot.attributes.combatTargetPosition = undefined;
         }
 
-        if (entity.type === EntityType.LAND) {
-            const shouldRemove = processLandDecay(entity, now);
-            if (!shouldRemove) {
-                finalEntities.push(entity);
-            }
-            return;
-        }
-
-        if (entity.type === EntityType.PERSON && entity.attributes) {
-            
-            // Reset bot if combat finished
-            if (botsToReset.has(entity.id)) {
-                entity.attributes.estado = 'ocioso';
-                entity.attributes.combatEndTime = undefined;
-                entity.attributes.combatTargetId = undefined;
-                entity.attributes.combatTargetPosition = undefined;
-                
-                entity.attributes.energia = Math.max(0, entity.attributes.energia - 1);
-                playerEnergyConsumed += GAME_CONFIG.COMBAT.KILL_COST;
-            }
-
-            const shouldRemove = processDeathLifecycle(entity, entity.attributes, now);
-            
-            if (!shouldRemove) {
-                // Pass ALL entities so it can find blocks to collide with
-                const updatedBot = processBioBot(entity, nextEntities.filter(e => !blocksToDestroy.has(e.id)), now, speed, interactionRadius);
-                finalEntities.push(updatedBot);
-            }
-            return;
-        }
-
-        finalEntities.push(entity);
-    });
-
-    return {
-        entities: finalEntities,
-        playerEnergyConsumed
-    };
-};
-
-export const updateEntityPosition = (entity: GameEntity, allEntities: GameEntity[], speed: number, radius: number): GameEntity => {
-    return processBioBot(entity, allEntities, Date.now(), speed, radius);
-};
-
-export const getBotResponse = (userText: string, personality: string, status: string): string => {
-    if (status === 'muerto') return "... (Sin respuesta)";
-
-    if (userText.toLowerCase().includes('hola')) {
-        return `Saludos. Mi estado actual es ${status}.`;
-    } else if (userText.toLowerCase().includes('trabaja')) {
-        return "Entendido. Buscaré una tarea productiva de inmediato.";
-    } else {
-        if (personality === 'Lógico') return "Análisis completado. Los parámetros son aceptables.";
-        else if (personality === 'Curioso') return "¿Es esa la voluntad del cosmos? Interesante...";
-        else if (personality === 'Protector') return "Mantendré la seguridad del perímetro.";
-        else return "Recibido. Transmisión guardada en mi memoria central.";
+        // Process Bot Logic (Movement, AI)
+        // Note: processBioBot mutates/returns new attributes. 
+        // We pass 'entities' (source list) so it can scan environment.
+        const updatedBot = processBioBot(bot, entities, now, speed, interactionRadius);
+        nextEntities.push(updatedBot);
     }
+
+    // 2. Process Intruders
+    for (const intruder of intruders) {
+        if (!intruder.intruderAttributes) {
+            nextEntities.push(intruder);
+            continue;
+        }
+
+        // Check if killed
+        if (intrudersToKill.has(intruder.id) && !intruder.intruderAttributes.isDying) {
+            intruder.intruderAttributes.isDying = true;
+            intruder.intruderAttributes.deathTimestamp = now;
+            playerEnergyConsumed += GAME_CONFIG.COMBAT.KILL_COST;
+        }
+
+        // Remove if explosion finished
+        if (intruder.intruderAttributes.isDying) {
+            const deathTime = intruder.intruderAttributes.deathTimestamp || now;
+            if (now - deathTime > GAME_CONFIG.INTRUDER.EXPLOSION_DURATION_MS) {
+                continue; // Remove intruder
+            }
+        }
+
+        // Update Intruder
+        const updatedIntruder = processIntruder(intruder, blocks, now);
+        nextEntities.push(updatedIntruder);
+    }
+
+    // 3. Process Lands
+    for (const land of lands) {
+        if (!processLandDecay(land, now)) {
+            nextEntities.push(land);
+        }
+    }
+
+    // 4. Process Blocks
+    for (const block of blocks) {
+        // Durability Logic
+        if (block.blockAttributes) {
+            // Find attackers
+            const beingAttacked = nextEntities.some(e => 
+                e.type === EntityType.INTRUDER && 
+                e.intruderAttributes?.state === 'attacking_structure' && 
+                e.intruderAttributes.targetId === block.id &&
+                !e.intruderAttributes.isDying
+            );
+
+            if (beingAttacked) {
+                // Damage (Hardcoded or Config)
+                const DAMAGE_PER_TICK = 5; 
+                block.blockAttributes.durability -= DAMAGE_PER_TICK;
+                if (block.blockAttributes.durability <= 0) {
+                    continue; // Block destroyed
+                }
+            }
+        }
+        nextEntities.push(block);
+    }
+
+    // 5. Wallet
+    if (wallet) nextEntities.push(wallet);
+
+    return { entities: nextEntities, playerEnergyConsumed };
 };

@@ -1,8 +1,7 @@
 
-
 import React, { useEffect, useState } from 'react';
 import { GameEntity, EntityType, BlockType } from '../types';
-import { Server, Wallet, Cpu, Shield, Lock, Box, Activity, Crosshair } from 'lucide-react';
+import { Server, Wallet, Cpu, Shield, Lock, Box, Activity, Crosshair, Radar, ChevronUp } from 'lucide-react';
 import { GAME_CONFIG } from '../gameConfig';
 import { WALLET_CENTER } from '../services/gameService';
 
@@ -11,6 +10,7 @@ interface EntityNodeProps {
   onClick: (entity: GameEntity) => void;
   onMouseDown?: (e: React.MouseEvent | React.TouchEvent, entity: GameEntity) => void;
   walletStats?: { energy: number; crypto: number }; 
+  isSelected?: boolean; // New Prop for visual highlight
 }
 
 const EMOTES = ['😉', '😄', '😍', '😮', '🤨', '❤️', '🎵', '🤔', '✍️', '💬', '💤'];
@@ -22,7 +22,7 @@ const SEQ_CRITICAL = 3000;
 const SEQ_EXPLOSION = 4500;
 const SEQ_COMPLETE = 5000;
 
-export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouseDown, walletStats }) => {
+export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouseDown, walletStats, isSelected }) => {
   const isPerson = entity.type === EntityType.PERSON;
   
   const [activeEmote, setActiveEmote] = useState<string | null>(null);
@@ -53,7 +53,7 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
 
   useEffect(() => {
     if (!isPerson) return;
-    if (entity.attributes?.estado === 'muerto' || entity.attributes?.estado === 'peleando') return; 
+    if (entity.attributes?.estado === 'muerto' || entity.attributes?.estado === 'peleando' || entity.attributes?.estado === 'cazando') return; 
     if (isNewborn) return; 
 
     const interval = setInterval(() => {
@@ -74,6 +74,13 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
       return 'hue-rotate(-130deg) saturate(2)'; 
   };
 
+  // --- SELECTION RING (Visual helper) ---
+  const SelectionRing = () => (
+      isSelected ? (
+          <div className="absolute -inset-2 border-2 border-white rounded-full animate-pulse shadow-[0_0_15px_rgba(255,255,255,0.6)] z-0 pointer-events-none" />
+      ) : null
+  );
+
   // --- BLOCK RENDER (STRUCTURES) ---
   if (entity.type === EntityType.BLOCK) {
       const type = entity.blockAttributes?.type;
@@ -88,6 +95,7 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
                 onTouchStart={(e) => onMouseDown && onMouseDown(e, entity)}
                 onClick={(e) => { e.stopPropagation(); onClick(entity); }}
             >
+                {isSelected && <div className="absolute -inset-1 border border-tech-cyan shadow-[0_0_10px_#06b6d4]" />}
                 <div className="w-full h-full bg-gradient-to-br from-gray-300 via-gray-400 to-gray-500 rounded-sm border-2 border-gray-600 shadow-md flex items-center justify-center relative overflow-hidden">
                     {/* Metallic Texture */}
                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/brushed-alum.png')] opacity-50" />
@@ -105,6 +113,7 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
                 onTouchStart={(e) => onMouseDown && onMouseDown(e, entity)}
                 onClick={(e) => { e.stopPropagation(); onClick(entity); }}
             >
+                {isSelected && <div className="absolute -inset-1 border border-tech-cyan shadow-[0_0_10px_#06b6d4]" />}
                 <div className="w-full h-full bg-[#5d4037] rounded-sm border-2 border-[#3e2723] shadow-md flex items-center justify-center relative overflow-hidden">
                     {/* Tech-Wood Texture */}
                     <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/wood-pattern.png')] opacity-30" />
@@ -326,34 +335,45 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
     const isEating = entity.attributes?.estado === 'alimentandose';
     const isWorking = entity.attributes?.estado === 'trabajando';
     const isFighting = entity.attributes?.estado === 'peleando';
+    const isHunting = entity.attributes?.estado === 'cazando';
     const isDead = entity.attributes?.estado === 'muerto';
+    const isEvolved = (entity.attributes?.evolutionLevel || 1) > 1;
+    const isPerformingSpecial = entity.attributes?.isPerformingSpecial; // New flag for Titan mode
     const energy = entity.attributes?.energia || 100;
 
     return (
       <div 
-        className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-move z-10 group transition-opacity duration-300 animate-pop-in"
-        style={{ left: entity.position.x, top: entity.position.y }}
+        // CHANGED: Removed transition-all, added transition-transform. This fixes the movement lag glitch.
+        className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-move group transition-transform duration-300 animate-pop-in ${isPerformingSpecial ? 'z-[100]' : 'z-10'}`}
+        style={{ 
+            left: entity.position.x, 
+            top: entity.position.y,
+            // EVOLUTION SCALING & TITAN MODE
+            transform: `translate(-50%, -50%) scale(${isPerformingSpecial ? GAME_CONFIG.COMBAT.SPECIAL_ATTACK.SCALE_FACTOR : (isEvolved ? 2 : 1)})`
+        }}
         onClick={(e) => { e.stopPropagation(); onClick(entity); }}
         onMouseDown={(e) => onMouseDown && onMouseDown(e, entity)}
         onTouchStart={(e) => onMouseDown && onMouseDown(e, entity)}
       >
+        <SelectionRing />
+
         {/* COMBAT VISUALS (ALPHA ONLY) */}
-        {isFighting && entity.attributes?.combatTargetPosition && (
+        {isFighting && entity.attributes?.combatTargetPosition && !isPerformingSpecial && (
             <div className="absolute top-1/2 left-1/2 pointer-events-none z-50">
                 <svg className="overflow-visible" width="1" height="1">
                      {/* Laser Beam */}
                      <line 
                         x1="0" 
                         y1="0" 
-                        x2={entity.attributes.combatTargetPosition.x - entity.position.x} 
-                        y2={entity.attributes.combatTargetPosition.y - entity.position.y} 
+                        x2={(entity.attributes.combatTargetPosition.x - entity.position.x) / (isEvolved ? 2 : 1)} 
+                        y2={(entity.attributes.combatTargetPosition.y - entity.position.y) / (isEvolved ? 2 : 1)} 
                         stroke="#ef4444" 
                         strokeWidth="3"
                         strokeDasharray="10,5"
                         className="animate-energy-flow opacity-80"
                      />
                      {/* Target Impact Effect (Tornado) */}
-                     <g transform={`translate(${entity.attributes.combatTargetPosition.x - entity.position.x}, ${entity.attributes.combatTargetPosition.y - entity.position.y})`}>
+                     <g transform={`translate(${(entity.attributes.combatTargetPosition.x - entity.position.x) / (isEvolved ? 2 : 1)}, ${(entity.attributes.combatTargetPosition.y - entity.position.y) / (isEvolved ? 2 : 1)})`}>
                          <circle r="25" fill="none" stroke="#ef4444" strokeWidth="1" className="animate-spin-slow opacity-50" />
                          <circle r="15" fill="none" stroke="#ef4444" strokeWidth="2" strokeDasharray="5,5" className="animate-spin-reverse opacity-80" />
                          <path d="M-10,-10 L10,10 M10,-10 L-10,10" stroke="white" strokeWidth="2" className="animate-pulse" />
@@ -368,26 +388,47 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
           
           {/* MAIN BODY (RESIZED: w-9 h-9 mobile, w-11 h-11 desktop) */}
           <div 
-            className={`w-9 h-9 md:w-11 md:h-11 rounded-full shadow-[0_4px_10px_rgba(6,182,212,0.3)] bg-transparent overflow-visible transition-all duration-1000 relative z-10 ${isFighting ? 'shadow-[0_0_20px_rgba(239,68,68,0.6)]' : ''}`}
+            className={`w-9 h-9 md:w-11 md:h-11 rounded-full shadow-[0_4px_10px_rgba(6,182,212,0.3)] bg-transparent overflow-visible transition-all duration-1000 relative z-10 ${isFighting || isPerformingSpecial ? 'shadow-[0_0_20px_rgba(239,68,68,0.6)]' : ''}`}
             style={{ filter: getEnergyFilter(energy, isDead) }}
           >
             <img 
                 src={entity.avatarUrl} 
                 alt="Person" 
-                className={`w-full h-full object-cover drop-shadow-md ${isFighting ? 'animate-shake-critical' : ''}`} 
+                className={`w-full h-full object-cover drop-shadow-md ${isFighting || isPerformingSpecial ? 'animate-shake-critical' : ''}`} 
             />
           </div>
 
-          {!isDead && !isFighting && (activeEmote || isEating) && (
+          {!isDead && !isFighting && (activeEmote || isEating) && !isPerformingSpecial && (
             <div className="absolute -top-6 -right-4 bg-slate-800 rounded-full p-1 shadow-lg text-lg animate-pop-in border border-white/20 z-20 min-w-[24px] text-center scale-75 md:scale-90">
                 {isEating ? '⚡' : activeEmote}
             </div>
           )}
 
+          {/* EVOLVED BADGE */}
+          {isEvolved && !isDead && !isPerformingSpecial && (
+              <div className="absolute -top-3 -right-3 bg-gradient-to-r from-yellow-400 to-orange-500 text-black text-[6px] font-black px-1 rounded shadow-lg animate-pulse z-20 border border-white/50">
+                  EVO
+              </div>
+          )}
+
+          {/* SPECIAL ATTACK TITAN BADGE */}
+          {isPerformingSpecial && (
+              <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-yellow-600/90 text-white px-3 py-1 rounded text-[4px] font-black tracking-widest border border-yellow-300 animate-pulse whitespace-nowrap shadow-[0_0_20px_rgba(234,179,8,1)] z-50">
+                  MODO TITÁN
+              </div>
+          )}
+
           {/* COMBAT INDICATOR */}
-          {isFighting && (
+          {isFighting && !isPerformingSpecial && (
             <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-alert-red/90 text-white px-2 py-0.5 rounded-full text-[8px] md:text-[10px] font-bold border border-red-500 shadow-lg whitespace-nowrap animate-bounce z-30 flex items-center gap-1">
                 <Crosshair size={10} /> ATACANDO
+            </div>
+          )}
+          
+          {/* HUNTING INDICATOR */}
+          {isHunting && !isPerformingSpecial && (
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-500/90 text-black px-2 py-0.5 rounded-full text-[8px] md:text-[10px] font-bold border border-yellow-300 shadow-lg whitespace-nowrap z-30 flex items-center gap-1 animate-pulse">
+                <Radar size={10} className="animate-spin" /> CAZANDO
             </div>
           )}
 
@@ -462,6 +503,8 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
           onTouchStart={(e) => onMouseDown && onMouseDown(e, entity)}
           onClick={(e) => { e.stopPropagation(); onClick(entity); }}
         >
+          {isSelected && <div className="absolute -inset-4 border border-white/50 rounded-full animate-pulse z-0 pointer-events-none" />}
+          
           {/* TOWER CONTAINER (Vertical, Biomechanical) */}
           {/* REDUCED SIZE BY 40% (Original: w-16 h-28 md:w-20 md:h-36) */}
           <div className="relative w-10 h-16 md:w-12 md:h-20 transition-transform duration-300">

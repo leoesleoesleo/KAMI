@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { StartScreen } from './components/StartScreen';
 import { WorldCanvas } from './components/WorldCanvas';
@@ -43,6 +42,10 @@ function App() {
   
   // New state to signal interface to close all modals
   const [closeModalsTrigger, setCloseModalsTrigger] = useState(0);
+
+  // --- MULTI-SELECTION STATE ---
+  const [selectedEntityIds, setSelectedEntityIds] = useState<string[]>([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
 
   const [gameState, setGameState] = useState<GameState>({
     isPlaying: false,
@@ -430,6 +433,7 @@ function App() {
         }
       }));
       setGlobalStats({ globalScore: 0, averageEnergy: 0 });
+      setSelectedEntityIds([]);
   };
 
   const togglePause = () => {
@@ -486,7 +490,28 @@ function App() {
 
   const handleBackgroundClick = () => {
       setSelectedEntity(null);
+      setSelectedEntityIds([]); // Clear multi-selection
       setCloseModalsTrigger(prev => prev + 1);
+  };
+
+  const handleEntitySelection = (entity: GameEntity) => {
+      setSelectedEntity(entity);
+      // If we single click an entity, it becomes the only selected entity
+      setSelectedEntityIds([entity.id]);
+  };
+
+  const handleMultiSelect = (ids: string[]) => {
+      setSelectedEntityIds(ids);
+      // If only one is selected via box, make it the primary selected entity
+      if (ids.length === 1) {
+          const entity = gameState.entities.find(e => e.id === ids[0]);
+          if (entity) setSelectedEntity(entity);
+      } else if (ids.length === 0) {
+          setSelectedEntity(null);
+      } else {
+          // If multiple are selected, clear the single detail view
+          setSelectedEntity(null);
+      }
   };
 
   const handleAction = (actionType: string, payload?: any) => {
@@ -599,7 +624,127 @@ function App() {
         return;
     }
 
-    // --- COMBAT HANDLER (UPDATED for Dynamic Duration & Range) ---
+    // --- NEW: SET COMBAT MODE ---
+    if (actionType === 'SET_COMBAT_MODE') {
+        const { entityId, mode } = payload;
+        setGameState(prev => ({
+            ...prev,
+            entities: prev.entities.map(e => {
+                if (e.id === entityId && e.attributes) {
+                    return {
+                        ...e,
+                        attributes: {
+                            ...e.attributes,
+                            combatMode: mode
+                        }
+                    };
+                }
+                return e;
+            })
+        }));
+        return;
+    }
+
+    // --- NEW: SET WORK MODE ---
+    if (actionType === 'SET_WORK_MODE') {
+        const { entityId, mode } = payload;
+        setGameState(prev => ({
+            ...prev,
+            entities: prev.entities.map(e => {
+                if (e.id === entityId && e.attributes) {
+                    return {
+                        ...e,
+                        attributes: {
+                            ...e.attributes,
+                            workMode: mode
+                        }
+                    };
+                }
+                return e;
+            })
+        }));
+        return;
+    }
+
+    // --- NEW: SPECIAL ATTACK TITAN ---
+    if (actionType === 'SPECIAL_ATTACK') {
+        const entityId = payload;
+        const COST = GAME_CONFIG.COMBAT.SPECIAL_ATTACK.COST;
+        const MIN_VIT = GAME_CONFIG.COMBAT.SPECIAL_ATTACK.MIN_VITALITY;
+
+        // Security Checks
+        if (gameState.player.points < COST) return;
+        const bot = gameState.entities.find(e => e.id === entityId);
+        if (!bot || !bot.attributes || bot.attributes.energia < MIN_VIT) return;
+
+        // 1. Deduct Player Mana
+        // 2. Kill ALL Intruders (Global wipe)
+        // 3. Set Bot state to performing special (visuals)
+        
+        setGameState(prev => {
+            const updatedEntities = prev.entities.map(e => {
+                // Update the Titan Bot
+                if (e.id === entityId && e.attributes) {
+                    return {
+                        ...e,
+                        attributes: {
+                            ...e.attributes,
+                            isPerformingSpecial: true // Triggers giant scale
+                        }
+                    };
+                }
+                // Kill all Intruders
+                if (e.type === EntityType.INTRUDER && e.intruderAttributes && !e.intruderAttributes.isDying) {
+                    return {
+                        ...e,
+                        intruderAttributes: {
+                            ...e.intruderAttributes,
+                            isDying: true,
+                            deathTimestamp: Date.now()
+                        }
+                    };
+                }
+                return e;
+            });
+
+            return {
+                ...prev,
+                entities: updatedEntities,
+                player: {
+                    ...prev.player,
+                    points: prev.player.points - COST,
+                    stats: {
+                        ...prev.player.stats,
+                        manaSpent: prev.player.stats.manaSpent + COST
+                    }
+                }
+            };
+        });
+
+        // 4. Reset Timer: After duration, shrink and drain energy to 0
+        setTimeout(() => {
+            setGameState(prev => ({
+                ...prev,
+                entities: prev.entities.map(e => {
+                    if (e.id === entityId && e.attributes) {
+                        return {
+                            ...e,
+                            attributes: {
+                                ...e.attributes,
+                                isPerformingSpecial: false,
+                                energia: 0 // Drains to 0 as penalty
+                            }
+                        };
+                    }
+                    return e;
+                })
+            }));
+        }, GAME_CONFIG.COMBAT.SPECIAL_ATTACK.DURATION_MS);
+
+        return;
+    }
+
+    // --- COMBAT HANDLER (UPDATED for Hunt & Attack) ---
     if (actionType === 'ATTACK_INTRUDER') {
         const attackerId = payload;
         
@@ -607,17 +752,7 @@ function App() {
         const attacker = gameState.entities.find(e => e.id === attackerId);
         if (!attacker || !attacker.attributes) return;
 
-        // Calculate dynamic values based on attacker's energy
-        const energyPercent = Math.max(0, Math.min(1, attacker.attributes.energia / 100));
-
-        // 1. Dynamic Range Calculation
-        // Formula: Min Range + (Difference * EnergyPercent)
-        // 0% Energy -> 150px
-        // 100% Energy -> 450px
-        const dynamicRange = GAME_CONFIG.COMBAT.MIN_DISTANCE + 
-            (GAME_CONFIG.COMBAT.MAX_DISTANCE - GAME_CONFIG.COMBAT.MIN_DISTANCE) * energyPercent;
-
-        // Find nearest intruder
+        // Find nearest intruder TO THIS SPECIFIC BOT
         let nearestIntruder: GameEntity | null = null;
         let minDist = Infinity;
 
@@ -633,14 +768,9 @@ function App() {
             }
         });
 
-        if (nearestIntruder && minDist <= dynamicRange) {
-            // 2. Dynamic Duration Calculation (Inverted: Higher Energy = Faster Kill)
-            // Formula: Min Duration + (Difference * (1 - EnergyPercent))
-            // 100% Energy -> 5s
-            // 0% Energy -> 20s
-            const finalDuration = GAME_CONFIG.COMBAT.MIN_DURATION_MS + 
-                (GAME_CONFIG.COMBAT.MAX_DURATION_MS - GAME_CONFIG.COMBAT.MIN_DURATION_MS) * (1 - energyPercent);
-
+        if (nearestIntruder) {
+            // Initiate HUNTING mode (Cazando)
+            // The logic to move closer and THEN attack is handled in updateWorldState -> processBioBot
             
             setGameState(prev => ({
                 ...prev,
@@ -650,11 +780,9 @@ function App() {
                             ...e,
                             attributes: {
                                 ...e.attributes,
-                                estado: 'peleando',
+                                estado: 'cazando', // New state
                                 combatTargetId: (nearestIntruder as GameEntity).id,
-                                combatTargetPosition: (nearestIntruder as GameEntity).position,
-                                combatEndTime: Date.now() + finalDuration
-                                // Energy will be deducted in updateWorldState upon destruction
+                                combatTargetPosition: (nearestIntruder as GameEntity).position
                             }
                         };
                     }
@@ -662,7 +790,7 @@ function App() {
                 })
             }));
         } else {
-             // If too far or no target, show error toast
+             // If no intruder found
              setTargetLostTrigger(prev => prev + 1);
         }
         return;
@@ -843,7 +971,7 @@ function App() {
             <div className="relative w-full h-full animate-fadeIn">
               <WorldCanvas 
                 entities={gameState.entities} 
-                onEntityClick={setSelectedEntity}
+                onEntityClick={handleEntitySelection}
                 isWatering={false} 
                 isPlacingLand={isPlacingLand}
                 isPlacingPerson={!!pendingPersonAttributes}
@@ -855,14 +983,21 @@ function App() {
                 walletStats={{ energy: gameState.player.points, crypto: availableCrypto }} 
                 blocksToPlace={blocksToPlace} 
                 level={gameState.level} 
-                onBackgroundClick={handleBackgroundClick} // New Handler for background clicks
+                onBackgroundClick={handleBackgroundClick} 
+                selectedEntityIds={selectedEntityIds}
+                onMultiSelect={handleMultiSelect}
+                isSelectionMode={isSelectionMode}
               />
               <GameInterface 
                 player={gameState.player} 
                 entities={gameState.entities}
                 onAction={handleAction} 
                 selectedEntity={selectedEntity}
-                onCloseSelection={() => setSelectedEntity(null)}
+                selectedEntityIds={selectedEntityIds}
+                onCloseSelection={() => {
+                    setSelectedEntity(null);
+                    setSelectedEntityIds([]);
+                }}
                 wastedManaTrigger={wastedManaTrigger}
                 targetLostTrigger={targetLostTrigger} 
                 isPlacingLand={isPlacingLand}
@@ -870,7 +1005,7 @@ function App() {
                 isTargetingRecharge={isTargetingRecharge}
                 onBuyMana={handleBuyMana}
                 globalStats={globalStats}
-                pendingCrypto={pendingTotalCrypto} // Pass new prop
+                pendingCrypto={pendingTotalCrypto} 
                 onExit={handleExitGame}
                 onRestart={handleRestartGame}
                 blocksToPlace={blocksToPlace} 
@@ -880,7 +1015,9 @@ function App() {
                 isPaused={gameState.isPaused} 
                 togglePause={togglePause}
                 onNodeRecharge={handleSingleNodeRecharge}
-                closeModalsTrigger={closeModalsTrigger} // Pass trigger to close modals
+                closeModalsTrigger={closeModalsTrigger}
+                isSelectionMode={isSelectionMode}
+                toggleSelectionMode={() => setIsSelectionMode(!isSelectionMode)}
               />
             </div>
           )
