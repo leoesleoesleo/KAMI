@@ -6,6 +6,8 @@ export enum EntityType {
   WALLET = 'WALLET',
   BLOCK = 'BLOCK',
   INTRUDER = 'INTRUDER', // New Entity Type: Matrix Sentinel
+  TORNADO = 'TORNADO', // Level 3 Obstacle
+  BLACK_HOLE = 'BLACK_HOLE', // New Entity Type: Level 4 Obstacle
 }
 
 export enum BlockType {
@@ -43,6 +45,18 @@ export interface IntruderAttributes {
     isEngaged?: boolean; // Stopped by combat
     isDying?: boolean; // Exploding sequence
     deathTimestamp?: number; // When death started
+}
+
+export interface TornadoAttributes {
+    creationTime: number;
+    duration: number; // How long it lasts in ms
+    wanderAngle: number; // Current movement direction
+}
+
+export interface BlackHoleAttributes {
+    creationTime: number;
+    duration: number;
+    moveAngle: number;
 }
 
 export interface EntityAttributes {
@@ -88,6 +102,8 @@ export interface GameEntity {
   landAttributes?: LandAttributes; // Only for land
   blockAttributes?: BlockAttributes; // Only for blocks
   intruderAttributes?: IntruderAttributes; // Only for intruders
+  tornadoAttributes?: TornadoAttributes; // Only for tornadoes
+  blackHoleAttributes?: BlackHoleAttributes; // Only for black holes
   avatarUrl?: string;
   createdAt: number;
 }

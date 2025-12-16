@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { StartScreen } from './components/StartScreen';
 import { WorldCanvas } from './components/WorldCanvas';
@@ -6,7 +8,7 @@ import { MusicPlayer } from './components/MusicPlayer';
 import { InstallPWA } from './components/InstallPWA';
 import { LoadingScreen } from './components/LoadingScreen';
 import { useGameLoop } from './hooks/useGameLoop';
-import { createPersonEntity, createLandEntity, createWalletEntity, createBlockEntity, createGhostNode, ensureOutsideWallet, createIntruderEntity, updateWorldState, generateLevel1Layout } from './services/gameService';
+import { createPersonEntity, createLandEntity, createWalletEntity, createBlockEntity, createGhostNode, ensureOutsideWallet, createIntruderEntity, updateWorldState, generateLevel1Layout, createTornadoEntity, createBlackHoleEntity } from './services/gameService';
 import { RuntimeTestRunner } from './services/RuntimeTestRunner';
 import { StorageService } from './services/storageService';
 import { AudioManager } from './services/AudioManager'; 
@@ -197,6 +199,59 @@ function App() {
 
       return () => clearInterval(waveInterval);
   }, [isPlaying]);
+
+  // --- TORNADO OBSTACLE SPAWNER (LEVEL 3+) ---
+  useEffect(() => {
+    if (!isPlaying || gameState.isPaused) return;
+    if (gameState.level < 3) return; // Only active from Level 3 onwards
+
+    const spawnTornado = () => {
+        const currentTornadoes = gameStateRef.current.entities.filter(e => e.type === EntityType.TORNADO).length;
+        if (currentTornadoes < GAME_CONFIG.TORNADO.MAX_CONCURRENT) {
+             const tornado = createTornadoEntity();
+             setGameState(prev => ({
+                 ...prev,
+                 entities: [...prev.entities, tornado]
+             }));
+        }
+    };
+
+    const tornadoInterval = setInterval(() => {
+         if (!gameStateRef.current.isPaused) {
+            spawnTornado();
+         }
+    }, GAME_CONFIG.TORNADO.SPAWN_INTERVAL_MS);
+
+    return () => clearInterval(tornadoInterval);
+
+  }, [isPlaying, gameState.level, gameState.isPaused]);
+
+  // --- BLACK HOLE OBSTACLE SPAWNER (LEVEL 4+) ---
+  useEffect(() => {
+    if (!isPlaying || gameState.isPaused) return;
+    if (gameState.level < 4) return; // Active from Level 4
+
+    const spawnBlackHole = () => {
+        const currentBH = gameStateRef.current.entities.filter(e => e.type === EntityType.BLACK_HOLE).length;
+        if (currentBH < GAME_CONFIG.BLACK_HOLE.MAX_CONCURRENT) {
+             const blackHole = createBlackHoleEntity();
+             setGameState(prev => ({
+                 ...prev,
+                 entities: [...prev.entities, blackHole]
+             }));
+        }
+    };
+
+    const bhInterval = setInterval(() => {
+         if (!gameStateRef.current.isPaused) {
+            spawnBlackHole();
+         }
+    }, GAME_CONFIG.BLACK_HOLE.SPAWN_INTERVAL_MS);
+
+    return () => clearInterval(bhInterval);
+
+  }, [isPlaying, gameState.level, gameState.isPaused]);
+
 
   // --- LEVEL UP LOGIC & INITIAL INTRUDER SPAWNING ---
   useEffect(() => {

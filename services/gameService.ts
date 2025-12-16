@@ -1,3 +1,5 @@
+
+
 import { EntityAttributes, Gender, Vector2, EntityType, GameEntity, LandAttributes, BlockType } from '../types';
 import { WORLD_SIZE } from '../constants';
 import { GAME_CONFIG } from '../gameConfig';
@@ -235,6 +237,46 @@ export const createIntruderEntity = (): GameEntity => {
     };
 
     return entity;
+};
+
+export const createTornadoEntity = (): GameEntity => {
+    const position = generateRandomPosition(WALLET_CENTER, WORLD_SIZE / 2 - 50); // Anywhere on map
+    const minDur = GAME_CONFIG.TORNADO.MIN_DURATION_MS;
+    const maxDur = GAME_CONFIG.TORNADO.MAX_DURATION_MS;
+    const duration = Math.floor(Math.random() * (maxDur - minDur + 1)) + minDur;
+
+    return {
+        id: generateUUID(),
+        type: EntityType.TORNADO,
+        position,
+        tornadoAttributes: {
+            creationTime: Date.now(),
+            duration: duration,
+            wanderAngle: Math.random() * Math.PI * 2
+        },
+        createdAt: Date.now()
+    };
+};
+
+export const createBlackHoleEntity = (): GameEntity => {
+    // Generate a random position reasonably far from the wallet to start
+    const position = generateRandomPosition(WALLET_CENTER, WORLD_SIZE / 3); 
+    
+    const minDur = GAME_CONFIG.BLACK_HOLE.MIN_DURATION_MS;
+    const maxDur = GAME_CONFIG.BLACK_HOLE.MAX_DURATION_MS;
+    const duration = Math.floor(Math.random() * (maxDur - minDur + 1)) + minDur;
+
+    return {
+        id: generateUUID(),
+        type: EntityType.BLACK_HOLE,
+        position,
+        blackHoleAttributes: {
+            creationTime: Date.now(),
+            duration: duration,
+            moveAngle: Math.random() * Math.PI * 2 // Direction of travel
+        },
+        createdAt: Date.now()
+    };
 };
 
 // --- INITIAL LEVEL 1 LAYOUT GENERATOR ---
@@ -556,6 +598,89 @@ const checkEvolution = (attr: EntityAttributes): void => {
         // Optionally refill energy or boost max stats here
         attr.energia = GAME_CONFIG.BIOBOT.MAX_ENERGY;
     }
+};
+
+export const processTornado = (entity: GameEntity, now: number): GameEntity => {
+    if (!entity.tornadoAttributes) return entity;
+    const attr = entity.tornadoAttributes;
+
+    // Move randomly (Wander behavior)
+    // Small chance to change direction
+    if (Math.random() < 0.05) {
+        attr.wanderAngle += (Math.random() - 0.5) * 2; // +/- 1 radian turn
+    }
+
+    const speed = GAME_CONFIG.TORNADO.SPEED;
+    let nextX = entity.position.x + Math.cos(attr.wanderAngle) * speed;
+    let nextY = entity.position.y + Math.sin(attr.wanderAngle) * speed;
+
+    // Bounce off walls
+    if (nextX < 0 || nextX > WORLD_SIZE) {
+        attr.wanderAngle = Math.PI - attr.wanderAngle;
+        nextX = Math.max(0, Math.min(WORLD_SIZE, nextX));
+    }
+    if (nextY < 0 || nextY > WORLD_SIZE) {
+        attr.wanderAngle = -attr.wanderAngle;
+        nextY = Math.max(0, Math.min(WORLD_SIZE, nextY));
+    }
+    
+    // Core Wallet Avoidance (Bounce off Core)
+    const dx = nextX - WALLET_CENTER.x;
+    const dy = nextY - WALLET_CENTER.y;
+    const distToCore = Math.sqrt(dx * dx + dy * dy);
+    
+    // 50 is approx core radius + tornado radius
+    if (distToCore < 60) {
+        // Reverse direction
+        attr.wanderAngle += Math.PI;
+        const pushAngle = Math.atan2(dy, dx);
+        nextX = WALLET_CENTER.x + Math.cos(pushAngle) * 65;
+        nextY = WALLET_CENTER.y + Math.sin(pushAngle) * 65;
+    }
+
+    return {
+        ...entity,
+        position: { x: nextX, y: nextY },
+        tornadoAttributes: attr
+    };
+};
+
+export const processBlackHole = (entity: GameEntity, now: number): GameEntity => {
+    if (!entity.blackHoleAttributes) return entity;
+    const attr = entity.blackHoleAttributes;
+
+    // Movement: Slow and steady in one direction (unlike erratic tornado)
+    const speed = GAME_CONFIG.BLACK_HOLE.SPEED;
+    let nextX = entity.position.x + Math.cos(attr.moveAngle) * speed;
+    let nextY = entity.position.y + Math.sin(attr.moveAngle) * speed;
+
+    // Bounce off walls
+    if (nextX < 0 || nextX > WORLD_SIZE) {
+        attr.moveAngle = Math.PI - attr.moveAngle;
+        nextX = Math.max(0, Math.min(WORLD_SIZE, nextX));
+    }
+    if (nextY < 0 || nextY > WORLD_SIZE) {
+        attr.moveAngle = -attr.moveAngle;
+        nextY = Math.max(0, Math.min(WORLD_SIZE, nextY));
+    }
+
+    // Bounce off Core Wallet (Wallet is immune)
+    const dx = nextX - WALLET_CENTER.x;
+    const dy = nextY - WALLET_CENTER.y;
+    const distToCore = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distToCore < 80) { // Keep reasonable distance
+        attr.moveAngle += Math.PI; // Turn around
+        const pushAngle = Math.atan2(dy, dx);
+        nextX = WALLET_CENTER.x + Math.cos(pushAngle) * 85;
+        nextY = WALLET_CENTER.y + Math.sin(pushAngle) * 85;
+    }
+
+    return {
+        ...entity,
+        position: { x: nextX, y: nextY },
+        blackHoleAttributes: attr
+    };
 };
 
 export const processIntruder = (
@@ -1098,26 +1223,94 @@ export const updateWorldState = (
     const intruders = entities.filter(e => e.type === EntityType.INTRUDER);
     const lands = entities.filter(e => e.type === EntityType.LAND);
     const blocks = entities.filter(e => e.type === EntityType.BLOCK);
+    const tornadoes = entities.filter(e => e.type === EntityType.TORNADO);
+    const blackHoles = entities.filter(e => e.type === EntityType.BLACK_HOLE);
     const wallet = entities.find(e => e.type === EntityType.WALLET);
 
+    // Entities marked for destruction by hazards (Tornado/BlackHole)
+    const destructionSet = new Set<string>();
+
+    const nextEntities: GameEntity[] = [];
+    const activeTornadoes: GameEntity[] = [];
+    const activeBlackHoles: GameEntity[] = [];
+
+    // --- HAZARD 1: TORNADOES ---
+    for (const tornado of tornadoes) {
+        if (!tornado.tornadoAttributes) continue;
+        if (now - tornado.tornadoAttributes.creationTime > tornado.tornadoAttributes.duration) {
+            continue; // Remove expired
+        }
+        const updatedTornado = processTornado(tornado, now);
+        activeTornadoes.push(updatedTornado);
+        nextEntities.push(updatedTornado);
+
+        const tPos = updatedTornado.position;
+        const radius = GAME_CONFIG.TORNADO.DESTRUCTION_RADIUS;
+
+        // Collision Checks
+        biobots.forEach(bot => {
+            if (checkCollision(bot.position, BIOBOT_COLLISION_RADIUS, tPos, radius)) destructionSet.add(bot.id);
+        });
+        intruders.forEach(intruder => {
+            if (checkCollision(intruder.position, INTRUDER_COLLISION_RADIUS, tPos, radius)) destructionSet.add(intruder.id);
+        });
+        lands.forEach(land => {
+            if (checkCollision(land.position, 20, tPos, radius)) destructionSet.add(land.id);
+        });
+        blocks.forEach(block => {
+            if (checkCollision(block.position, BLOCK_COLLISION_RADIUS, tPos, radius)) destructionSet.add(block.id);
+        });
+    }
+
+    // --- HAZARD 2: BLACK HOLES ---
+    for (const bh of blackHoles) {
+        if (!bh.blackHoleAttributes) continue;
+        if (now - bh.blackHoleAttributes.creationTime > bh.blackHoleAttributes.duration) {
+            continue; // Remove expired
+        }
+        const updatedBH = processBlackHole(bh, now);
+        activeBlackHoles.push(updatedBH);
+        nextEntities.push(updatedBH);
+
+        const bPos = updatedBH.position;
+        const radius = GAME_CONFIG.BLACK_HOLE.EVENT_HORIZON_RADIUS;
+
+        // Collision Checks (Swallow everything except Wallet)
+        biobots.forEach(bot => {
+            if (checkCollision(bot.position, BIOBOT_COLLISION_RADIUS, bPos, radius)) destructionSet.add(bot.id);
+        });
+        intruders.forEach(intruder => {
+            if (checkCollision(intruder.position, INTRUDER_COLLISION_RADIUS, bPos, radius)) destructionSet.add(intruder.id);
+        });
+        lands.forEach(land => {
+            if (checkCollision(land.position, 20, bPos, radius)) destructionSet.add(land.id);
+        });
+        blocks.forEach(block => {
+            if (checkCollision(block.position, BLOCK_COLLISION_RADIUS, bPos, radius)) destructionSet.add(block.id);
+        });
+    }
+
     // --- IDENTIFY ENGAGED INTRUDERS ---
-    // Create a Set of Intruders currently being fought by BioBots
     const engagedIntruderIds = new Set<string>();
-    
-    // Pre-scan BioBots to find who they are fighting
     biobots.forEach(bot => {
         if (bot.attributes?.estado === 'peleando' && bot.attributes.combatTargetId) {
              engagedIntruderIds.add(bot.attributes.combatTargetId);
         }
     });
 
-    const nextEntities: GameEntity[] = [];
-
     // 1. Process BioBots
     for (const bot of biobots) {
         if (!bot.attributes) {
             nextEntities.push(bot);
             continue;
+        }
+
+        // HAZARD DEATH CHECK
+        if (destructionSet.has(bot.id)) {
+             bot.attributes.estado = 'muerto';
+             bot.attributes.deathTimestamp = now;
+             bot.attributes.energia = 0;
+             bot.attributes.holdingCryptos = 0;
         }
 
         // Death Lifecycle
@@ -1127,26 +1320,17 @@ export const updateWorldState = (
 
         // Combat Resolution
         if (bot.attributes.estado === 'peleando' && bot.attributes.combatEndTime && now >= bot.attributes.combatEndTime) {
-            // Combat Success
             bot.attributes.estado = 'ocioso';
             bot.attributes.combatEndTime = undefined;
-            
             if (bot.attributes.combatTargetId) {
                 intrudersToKill.add(bot.attributes.combatTargetId);
                 bot.attributes.kills = (bot.attributes.kills || 0) + 1;
-
-                // Evolution Trigger (Manual check as helper is not exported/accessible easily if scoped, 
-                // but checkEvolution IS in scope of this file)
                 checkEvolution(bot.attributes);
             }
-            
             bot.attributes.combatTargetId = undefined;
             bot.attributes.combatTargetPosition = undefined;
         }
 
-        // Process Bot Logic (Movement, AI)
-        // Note: processBioBot mutates/returns new attributes. 
-        // We pass 'entities' (source list) so it can scan environment.
         const updatedBot = processBioBot(bot, entities, now, speed, interactionRadius);
         nextEntities.push(updatedBot);
     }
@@ -1158,7 +1342,13 @@ export const updateWorldState = (
             continue;
         }
 
-        // Check if killed
+        // HAZARD DESTRUCTION CHECK
+        if (destructionSet.has(intruder.id) && !intruder.intruderAttributes.isDying) {
+             intruder.intruderAttributes.isDying = true;
+             intruder.intruderAttributes.deathTimestamp = now;
+        }
+
+        // Check if killed by combat
         if (intrudersToKill.has(intruder.id) && !intruder.intruderAttributes.isDying) {
             intruder.intruderAttributes.isDying = true;
             intruder.intruderAttributes.deathTimestamp = now;
@@ -1173,22 +1363,19 @@ export const updateWorldState = (
             }
         }
 
-        // Update 'isEngaged' state based on pre-scan
-        // If the intruder is in the set, it means a BioBot is actively fighting it.
-        // This will trigger the freeze logic in processIntruder.
         if (engagedIntruderIds.has(intruder.id)) {
             intruder.intruderAttributes.isEngaged = true;
         } else {
             intruder.intruderAttributes.isEngaged = false;
         }
 
-        // Update Intruder
         const updatedIntruder = processIntruder(intruder, blocks, now);
         nextEntities.push(updatedIntruder);
     }
 
     // 3. Process Lands
     for (const land of lands) {
+        if (destructionSet.has(land.id)) continue; // Removed by hazard
         if (!processLandDecay(land, now)) {
             nextEntities.push(land);
         }
@@ -1196,9 +1383,10 @@ export const updateWorldState = (
 
     // 4. Process Blocks
     for (const block of blocks) {
+        if (destructionSet.has(block.id)) continue; // Removed by hazard
+
         // Durability Logic
         if (block.blockAttributes) {
-            // Find attackers
             const beingAttacked = nextEntities.some(e => 
                 e.type === EntityType.INTRUDER && 
                 e.intruderAttributes?.state === 'attacking_structure' && 
@@ -1207,7 +1395,6 @@ export const updateWorldState = (
             );
 
             if (beingAttacked) {
-                // Damage (Hardcoded or Config)
                 const DAMAGE_PER_TICK = 5; 
                 block.blockAttributes.durability -= DAMAGE_PER_TICK;
                 if (block.blockAttributes.durability <= 0) {

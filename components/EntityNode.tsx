@@ -1,7 +1,8 @@
 
+
 import React, { useEffect, useState } from 'react';
 import { GameEntity, EntityType, BlockType } from '../types';
-import { Server, Wallet, Cpu, Shield, Lock, Box, Activity, Crosshair, Radar, ChevronUp } from 'lucide-react';
+import { Server, Wallet, Cpu, Shield, Lock, Box, Activity, Crosshair, Radar, ChevronUp, Wind } from 'lucide-react';
 import { GAME_CONFIG } from '../gameConfig';
 import { WALLET_CENTER } from '../services/gameService';
 
@@ -80,6 +81,67 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
           <div className="absolute -inset-2 border-2 border-white rounded-full animate-pulse shadow-[0_0_15px_rgba(255,255,255,0.6)] z-0 pointer-events-none" />
       ) : null
   );
+
+  // --- BLACK HOLE RENDER (LEVEL 4 OBSTACLE) ---
+  if (entity.type === EntityType.BLACK_HOLE) {
+      const radius = GAME_CONFIG.BLACK_HOLE.EVENT_HORIZON_RADIUS; // ~45px
+      const size = radius * 2;
+      return (
+          <div 
+              className="absolute transform -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none"
+              style={{ left: entity.position.x, top: entity.position.y, width: size, height: size }}
+          >
+              {/* Event Horizon (Black Core) */}
+              <div className="absolute inset-4 bg-black rounded-full shadow-[0_0_50px_#000] z-20" />
+              
+              {/* Accretion Disk (Glowing Ring) */}
+              <div className="absolute inset-0 rounded-full border-4 border-t-purple-500 border-r-cyan-500 border-b-purple-500 border-l-cyan-500 animate-spin-slow opacity-80 blur-[2px] z-10" />
+              
+              {/* Distortion Field (Outer Glow) */}
+              <div className="absolute -inset-4 bg-purple-900/30 rounded-full blur-xl animate-pulse" />
+              
+              {/* Particle Infall */}
+              <div className="absolute inset-0 border border-white/20 rounded-full animate-ping opacity-20" />
+          </div>
+      );
+  }
+
+  // --- TORNADO RENDER (LEVEL 3 OBSTACLE) ---
+  if (entity.type === EntityType.TORNADO) {
+      const radius = GAME_CONFIG.TORNADO.DESTRUCTION_RADIUS; // ~30px
+      const size = radius * 2;
+      return (
+          <div 
+              className="absolute transform -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none"
+              style={{ left: entity.position.x, top: entity.position.y, width: size, height: size }}
+          >
+              {/* Spinning Cone */}
+              <div className="w-full h-full animate-spin">
+                   <svg viewBox="0 0 100 100" className="w-full h-full opacity-80">
+                        <defs>
+                            <radialGradient id="tornadoGrad" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+                                <stop offset="0%" stopColor="rgba(255,255,255,0.1)" />
+                                <stop offset="50%" stopColor="rgba(200,200,200,0.5)" />
+                                <stop offset="100%" stopColor="rgba(255,255,255,0.8)" />
+                            </radialGradient>
+                        </defs>
+                        {/* Spiral Arms */}
+                        <path d="M50 50 Q 80 20 50 10 Q 20 20 50 50" fill="url(#tornadoGrad)" />
+                        <path d="M50 50 Q 20 80 50 90 Q 80 80 50 50" fill="url(#tornadoGrad)" />
+                        <path d="M50 50 Q 80 80 90 50 Q 80 20 50 50" fill="url(#tornadoGrad)" transform="rotate(90 50 50)" />
+                        <path d="M50 50 Q 20 20 10 50 Q 20 80 50 50" fill="url(#tornadoGrad)" transform="rotate(90 50 50)" />
+                   </svg>
+              </div>
+              {/* Inner Core Chaos */}
+              <div className="absolute inset-2 border-2 border-dashed border-gray-400 rounded-full animate-spin-reverse opacity-60" />
+              <div className="absolute inset-4 border border-dotted border-white rounded-full animate-spin opacity-80" />
+              
+              {/* Debris Particles */}
+              <div className="absolute -top-4 -left-4 w-2 h-2 bg-gray-500 rounded animate-bounce" />
+              <div className="absolute -bottom-2 -right-2 w-1.5 h-1.5 bg-white rounded animate-ping" />
+          </div>
+      );
+  }
 
   // --- BLOCK RENDER (STRUCTURES) ---
   if (entity.type === EntityType.BLOCK) {

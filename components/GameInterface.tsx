@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { PlayerState, GameEntity, Gender, INITIAL_POINTS, ACTION_COST, EntityType, BlockType } from '../types';
 import { Bot, Database, Zap, Pickaxe, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle, HardDrive, LogOut, RotateCcw, HeartPulse, ArrowRightLeft, Wallet, Hammer, Shield, Lock, Box, ChevronUp, Ghost, Pause, Play, Settings, Save, Swords, Share2, Link, Globe, Users, SquareDashedMousePointer, Dna, ShieldCheck, Microscope, ScanSearch, Flame } from 'lucide-react';
@@ -867,6 +868,11 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                  </span>
             </div>
         </div>
+      </div>
+
+      {/* MINIMAP - BOTTOM RIGHT */}
+      <div className="absolute bottom-20 right-4 md:bottom-8 md:right-8 pointer-events-auto z-30">
+          <Minimap entities={entities} />
       </div>
 
       {/* Tools / Build Modal - INCREASED Z-INDEX TO FIX CLICK ISSUE */}

@@ -38,6 +38,24 @@ export const GAME_CONFIG = {
       EXPLOSION_DURATION_MS: 1000, // Time for explosion animation
       MAX_CONCURRENT: 15 // Performance Cap: Max intruders allowed at once
   },
+  TORNADO: {
+      SPEED: 1.2, // Fast, erratic movement
+      DESTRUCTION_RADIUS: 40, // Similar to crop size
+      MIN_DURATION_MS: 10000,
+      MAX_DURATION_MS: 90000,
+      SPAWN_INTERVAL_MS: 45000, // Approx every 45s in Level 3
+      MAX_CONCURRENT: 2
+  },
+  BLACK_HOLE: {
+      SPEED: 0.6, // Slow, inevitable movement
+      EVENT_HORIZON_RADIUS: 45, // Large kill radius
+      MIN_DURATION_MS: 10000,
+      MAX_DURATION_MS: 90000,
+      // Spawning 5-10 times in a "level". Assuming level lasts ~5-10 mins.
+      // Every ~60s implies ~10 spawns in 10 mins.
+      SPAWN_INTERVAL_MS: 60000, 
+      MAX_CONCURRENT: 1 // Only one at a time usually
+  },
   COMBAT: {
       MIN_DISTANCE: 150, // Range at 0% energy
       MAX_DISTANCE: 450, // Range at 100% energy
