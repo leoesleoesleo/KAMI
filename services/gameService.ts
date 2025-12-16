@@ -1,4 +1,3 @@
-
 import { EntityAttributes, Gender, Vector2, EntityType, GameEntity, LandAttributes, BlockType } from '../types';
 import { WORLD_SIZE } from '../constants';
 import { GAME_CONFIG } from '../gameConfig';
@@ -236,6 +235,234 @@ export const createIntruderEntity = (): GameEntity => {
     };
 
     return entity;
+};
+
+// --- INITIAL LEVEL 1 LAYOUT GENERATOR ---
+export const generateLevel1Layout = (): GameEntity[] => {
+    const center = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
+    const entities: GameEntity[] = [];
+
+    // 1. Always add Core Wallet
+    entities.push(createWalletEntity());
+
+    // 2. Select Random Aesthetic Layout (0 to 9 = 10 Designs)
+    const layoutType = Math.floor(Math.random() * 10);
+    const GRID = GAME_CONFIG.STRUCTURES.GRID_SIZE; // 40
+
+    // Helper to add fully charged land
+    const addLand = (x: number, y: number) => {
+        const land = createLandEntity({ x, y });
+        if (land.landAttributes) {
+            land.landAttributes.resourceLevel = 100; // Fully charged
+        }
+        entities.push(land);
+    };
+
+    // Helper to add Encryption Block (Yellow/Wood/Gold style)
+    const addBlock = (x: number, y: number) => {
+        entities.push(createBlockEntity(BlockType.ENCRYPTION, { x, y }));
+    };
+
+    if (layoutType === 0) {
+        // --- LAYOUT 0: "THE IRON SQUARE" (La Fortaleza) ---
+        const radius = 3;
+        for (let x = -radius; x <= radius; x++) {
+            for (let y = -radius; y <= radius; y++) {
+                if (Math.abs(x) === radius || Math.abs(y) === radius) {
+                    addBlock(center.x + x * GRID, center.y + y * GRID);
+                }
+            }
+        }
+        const landDist = 200;
+        addLand(center.x - landDist, center.y - landDist);
+        addLand(center.x + landDist, center.y - landDist);
+        addLand(center.x - landDist, center.y + landDist);
+        addLand(center.x + landDist, center.y + landDist);
+
+    } else if (layoutType === 1) {
+        // --- LAYOUT 1: "THE DATA RING" (El Anillo de Datos) ---
+        const numBlocks = 12;
+        const blockRadius = 140;
+        for (let i = 0; i < numBlocks; i++) {
+            const angle = (i / numBlocks) * Math.PI * 2;
+            addBlock(
+                center.x + Math.cos(angle) * blockRadius,
+                center.y + Math.sin(angle) * blockRadius
+            );
+        }
+        const landDist = 220;
+        addLand(center.x, center.y - landDist); // N
+        addLand(center.x, center.y + landDist); // S
+        addLand(center.x + landDist, center.y); // E
+        addLand(center.x - landDist, center.y); // W
+
+    } else if (layoutType === 2) {
+        // --- LAYOUT 2: "THE X-PROTOCOL" (El Protocolo X) ---
+        for (let i = 2; i <= 4; i++) {
+            const d = i * GRID;
+            addBlock(center.x + d, center.y + d);
+            addBlock(center.x - d, center.y - d);
+            addBlock(center.x + d, center.y - d);
+            addBlock(center.x - d, center.y + d);
+        }
+        addBlock(center.x + 120, center.y);
+        addBlock(center.x - 120, center.y);
+        addBlock(center.x, center.y + 120);
+        addBlock(center.x, center.y - 120);
+        const landDist = 180;
+        addLand(center.x, center.y - landDist);
+        addLand(center.x, center.y + landDist);
+        addLand(center.x + landDist, center.y);
+        addLand(center.x - landDist, center.y);
+
+    } else if (layoutType === 3) {
+        // --- LAYOUT 3: "THE CROSS" (La Cruz) ---
+        // Defensive lines on cardinal axes, lands in corners
+        for (let i = 3; i <= 6; i++) {
+            const dist = i * GRID;
+            addBlock(center.x + dist, center.y);
+            addBlock(center.x - dist, center.y);
+            addBlock(center.x, center.y + dist);
+            addBlock(center.x, center.y - dist);
+        }
+        const landDist = 160;
+        addLand(center.x + landDist, center.y + landDist);
+        addLand(center.x - landDist, center.y - landDist);
+        addLand(center.x + landDist, center.y - landDist);
+        addLand(center.x - landDist, center.y + landDist);
+
+    } else if (layoutType === 4) {
+        // --- LAYOUT 4: "THE BRACKETS" (Los Corchetes) ---
+        // [ ] shape around core
+        const h = 3 * GRID;
+        const w = 4 * GRID;
+        // Vertical lines
+        for (let y = -h; y <= h; y += GRID) {
+            addBlock(center.x - w, center.y + y);
+            addBlock(center.x + w, center.y + y);
+        }
+        // Horizontal caps
+        addBlock(center.x - w + GRID, center.y - h);
+        addBlock(center.x - w + GRID, center.y + h);
+        addBlock(center.x + w - GRID, center.y - h);
+        addBlock(center.x + w - GRID, center.y + h);
+
+        // Lands protected inside top/bottom
+        addLand(center.x, center.y - 100);
+        addLand(center.x, center.y + 100);
+        // Lands outside sides
+        addLand(center.x - 220, center.y);
+        addLand(center.x + 220, center.y);
+
+    } else if (layoutType === 5) {
+        // --- LAYOUT 5: "THE DIAMOND" (El Diamante) ---
+        // Rotated square
+        const size = 4; // steps
+        for (let i = 0; i <= size; i++) {
+            const offset = i * GRID;
+            const invOffset = (size - i) * GRID;
+            // First quadrant
+            addBlock(center.x + offset, center.y - invOffset - 40); // Shifted slightly out
+            addBlock(center.x + offset, center.y + invOffset + 40);
+            addBlock(center.x - offset, center.y - invOffset - 40);
+            addBlock(center.x - offset, center.y + invOffset + 40);
+        }
+        // Lands at NSEW tips
+        const tipDist = 240;
+        addLand(center.x, center.y - tipDist);
+        addLand(center.x, center.y + tipDist);
+        addLand(center.x + tipDist, center.y);
+        addLand(center.x - tipDist, center.y);
+
+    } else if (layoutType === 6) {
+        // --- LAYOUT 6: "THE CORRIDOR" (El Corredor) ---
+        // Two long horizontal walls
+        for (let x = -5; x <= 5; x++) {
+            addBlock(center.x + x * GRID, center.y - 100);
+            addBlock(center.x + x * GRID, center.y + 100);
+        }
+        // Lands at ends of corridor
+        addLand(center.x - 240, center.y);
+        addLand(center.x + 240, center.y);
+        // Lands inside safe zone
+        addLand(center.x - 80, center.y);
+        addLand(center.x + 80, center.y);
+
+    } else if (layoutType === 7) {
+        // --- LAYOUT 7: "THE OCTAGON" (El Octágono) ---
+        const r = 160;
+        const segments = 8;
+        for (let i = 0; i < segments; i++) {
+            const angle = (i / segments) * Math.PI * 2;
+            addBlock(center.x + Math.cos(angle) * r, center.y + Math.sin(angle) * r);
+            // Add filler blocks between points for solidity
+            const nextAngle = ((i + 1) / segments) * Math.PI * 2;
+            const midX = (Math.cos(angle) + Math.cos(nextAngle)) / 2 * r;
+            const midY = (Math.sin(angle) + Math.sin(nextAngle)) / 2 * r;
+            addBlock(center.x + midX, center.y + midY);
+        }
+        // Lands outside
+        addLand(center.x - 220, center.y - 220);
+        addLand(center.x + 220, center.y + 220);
+        addLand(center.x + 220, center.y - 220);
+        addLand(center.x - 220, center.y + 220);
+
+    } else if (layoutType === 8) {
+        // --- LAYOUT 8: "THE SATELLITES" (Los Satélites) ---
+        // 4 clusters of blocks at corners, core exposed
+        const offset = 140;
+        // Cluster 1
+        addBlock(center.x - offset, center.y - offset);
+        addBlock(center.x - offset + GRID, center.y - offset);
+        addBlock(center.x - offset, center.y - offset + GRID);
+        addLand(center.x - offset + 20, center.y - offset + 20); // Land near cluster
+
+        // Cluster 2
+        addBlock(center.x + offset, center.y - offset);
+        addBlock(center.x + offset - GRID, center.y - offset);
+        addBlock(center.x + offset, center.y - offset + GRID);
+        addLand(center.x + offset - 20, center.y - offset + 20);
+
+        // Cluster 3
+        addBlock(center.x - offset, center.y + offset);
+        addBlock(center.x - offset + GRID, center.y + offset);
+        addBlock(center.x - offset, center.y + offset - GRID);
+        addLand(center.x - offset + 20, center.y + offset - 20);
+
+        // Cluster 4
+        addBlock(center.x + offset, center.y + offset);
+        addBlock(center.x + offset - GRID, center.y + offset);
+        addBlock(center.x + offset, center.y + offset - GRID);
+        addLand(center.x + offset - 20, center.y + offset - 20);
+
+    } else {
+        // --- LAYOUT 9: "THE STAR" (La Estrella) ---
+        // 5-point star blocks
+        const points = 5;
+        const outerR = 180;
+        const innerR = 80;
+        for (let i = 0; i < points * 2; i++) {
+            const r = i % 2 === 0 ? outerR : innerR;
+            const angle = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
+            addBlock(center.x + Math.cos(angle) * r, center.y + Math.sin(angle) * r);
+            
+            // Add connecting block
+            const prevR = (i - 1) % 2 === 0 ? outerR : innerR;
+            const prevAngle = ((i - 1) / (points * 2)) * Math.PI * 2 - Math.PI / 2;
+            const midX = (Math.cos(angle) * r + Math.cos(prevAngle) * prevR) / 2;
+            const midY = (Math.sin(angle) * r + Math.sin(prevAngle) * prevR) / 2;
+            addBlock(center.x + midX, center.y + midY);
+        }
+        
+        // Lands in the gaps of the star
+        addLand(center.x, center.y - 120);
+        addLand(center.x - 110, center.y - 40);
+        addLand(center.x + 110, center.y - 40);
+        addLand(center.x - 70, center.y + 100);
+        // Removed 5th land to keep it to 4 balanced
+    }
+
+    return entities;
 };
 
 // --- CORE LOGIC MODULES (PURE FUNCTIONS) ---

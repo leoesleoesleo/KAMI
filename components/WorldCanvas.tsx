@@ -335,87 +335,187 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
 
   // --- BACKGROUND RENDER LOGIC ---
   const renderBackground = () => {
-      // LEVEL 1: Dark Tech (Default)
-      if (level === 1) {
-          return (
-              <>
-                <div className="absolute inset-0 bg-[#020617]" />
-                <div 
-                    className="absolute inset-0 opacity-20 pointer-events-none"
-                    style={{
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%2364748b' fill-opacity='0.25' fill-rule='evenodd'/%3E%3C/svg%3E")`,
-                        backgroundSize: '300px 300px'
-                    }}
-                />
-                <div 
-                    className="absolute inset-0 pointer-events-none"
-                    style={{
-                        background: `radial-gradient(circle at 90% 10%, rgba(234, 88, 12, 0.15) 0%, rgba(234, 88, 12, 0.05) 40%, transparent 70%), radial-gradient(circle at 10% 90%, rgba(6, 182, 212, 0.15) 0%, rgba(6, 182, 212, 0.05) 40%, transparent 70%)`
-                    }}
-                />
-                <div 
-                    className="absolute inset-0 opacity-5 pointer-events-none"
-                    style={{
-                        backgroundImage: `linear-gradient(#334155 1px, transparent 1px), linear-gradient(90deg, #334155 1px, transparent 1px)`,
-                        backgroundSize: '100px 100px'
-                    }}
-                />
-                <div className="absolute inset-0 border-4 border-cyan-900/50 rounded shadow-[0_0_50px_rgba(6,182,212,0.1)]" />
-              </>
-          );
-      } 
       
-      // LEVEL 2: Biotech / Nature (Green/Teal)
-      else if (level === 2) {
-          return (
-              <>
-                  <div className="absolute inset-0 bg-gradient-to-br from-[#064e3b] to-[#111827]" />
-                  {/* Organic Lake Pattern */}
-                  <div className="absolute inset-0 opacity-20 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/black-scales.png')] mix-blend-overlay" />
-                  
-                  {/* Hex Grid Overlay */}
-                  <div 
-                    className="absolute inset-0 opacity-10 pointer-events-none"
-                    style={{
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0l25.98 15v30L30 60 4.02 45V15z' fill-opacity='0' stroke='%2334d399' stroke-width='1'/%3E%3C/svg%3E")`,
-                    }}
-                  />
-                   
-                   {/* Biotech Glows */}
-                   <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_50%,rgba(16,185,129,0.1),transparent_70%)]" />
-                   <div className="absolute inset-0 border-4 border-emerald-800/50 rounded shadow-[0_0_50px_rgba(16,185,129,0.2)]" />
-              </>
-          );
-      }
+      switch (level) {
+          // LEVEL 1: Dark Tech (Original)
+          case 1:
+              return (
+                  <>
+                    <div className="absolute inset-0 bg-[#020617]" />
+                    <div 
+                        className="absolute inset-0 opacity-20 pointer-events-none"
+                        style={{
+                            backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 1.79 4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 2.24 5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 2.24 5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%2364748b' fill-opacity='0.25' fill-rule='evenodd'/%3E%3C/svg%3E")`,
+                            backgroundSize: '300px 300px'
+                        }}
+                    />
+                    <div 
+                        className="absolute inset-0 opacity-5 pointer-events-none"
+                        style={{
+                            backgroundImage: `linear-gradient(#334155 1px, transparent 1px), linear-gradient(90deg, #334155 1px, transparent 1px)`,
+                            backgroundSize: '100px 100px'
+                        }}
+                    />
+                    <div className="absolute inset-0 border-4 border-cyan-900/50 rounded shadow-[0_0_50px_rgba(6,182,212,0.1)]" />
+                  </>
+              );
 
-      // LEVEL 3: Ascension / Sky (Blue/Purple/White)
-      else {
-          return (
-              <>
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#1e1b4b] via-[#312e81] to-[#4c1d95]" />
-                  {/* Cloud/Data Texture */}
-                  <div className="absolute inset-0 opacity-30 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] mix-blend-overlay" />
-                  
-                  {/* Floating Platforms effect via gradient */}
-                  <div 
-                      className="absolute inset-0 pointer-events-none opacity-40"
-                      style={{
-                          backgroundImage: `radial-gradient(circle at 20% 30%, rgba(255,255,255,0.1) 0%, transparent 20%), radial-gradient(circle at 80% 70%, rgba(255,255,255,0.1) 0%, transparent 20%)`
-                      }}
-                  />
-                  
-                  {/* High Tech Grid */}
-                   <div 
-                    className="absolute inset-0 opacity-10 pointer-events-none"
-                    style={{
-                        backgroundImage: `linear-gradient(rgba(167,139,250,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(167,139,250,0.5) 1px, transparent 1px)`,
-                        backgroundSize: '200px 200px'
-                    }}
-                  />
+          // LEVEL 2: Biotech / Nature (Green/Teal)
+          case 2:
+              return (
+                  <>
+                      <div className="absolute inset-0 bg-gradient-to-br from-[#064e3b] to-[#111827]" />
+                      <div className="absolute inset-0 opacity-20 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/black-scales.png')] mix-blend-overlay" />
+                      <div 
+                        className="absolute inset-0 opacity-10 pointer-events-none"
+                        style={{
+                            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0l25.98 15v30L30 60 4.02 45V15z' fill-opacity='0' stroke='%2334d399' stroke-width='1'/%3E%3C/svg%3E")`,
+                        }}
+                      />
+                       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_50%,rgba(16,185,129,0.1),transparent_70%)]" />
+                       <div className="absolute inset-0 border-4 border-emerald-800/50 rounded shadow-[0_0_50px_rgba(16,185,129,0.2)]" />
+                  </>
+              );
 
-                  <div className="absolute inset-0 border-4 border-violet-500/50 rounded shadow-[0_0_80px_rgba(167,139,250,0.4)]" />
-              </>
-          );
+          // LEVEL 3: Ascension / Sky (Blue/Purple/White)
+          case 3:
+              return (
+                  <>
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#1e1b4b] via-[#312e81] to-[#4c1d95]" />
+                      <div className="absolute inset-0 opacity-30 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] mix-blend-overlay" />
+                      <div 
+                          className="absolute inset-0 pointer-events-none opacity-40"
+                          style={{
+                              backgroundImage: `radial-gradient(circle at 20% 30%, rgba(255,255,255,0.1) 0%, transparent 20%), radial-gradient(circle at 80% 70%, rgba(255,255,255,0.1) 0%, transparent 20%)`
+                          }}
+                      />
+                       <div 
+                        className="absolute inset-0 opacity-10 pointer-events-none"
+                        style={{
+                            backgroundImage: `linear-gradient(rgba(167,139,250,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(167,139,250,0.5) 1px, transparent 1px)`,
+                            backgroundSize: '200px 200px'
+                        }}
+                      />
+                      <div className="absolute inset-0 border-4 border-violet-500/50 rounded shadow-[0_0_80px_rgba(167,139,250,0.4)]" />
+                  </>
+              );
+
+          // LEVEL 4: Industrial / Core (Orange/Rust)
+          case 4:
+              return (
+                  <>
+                      <div className="absolute inset-0 bg-gradient-to-br from-[#431407] to-[#1c1917]" />
+                      <div 
+                        className="absolute inset-0 opacity-20 pointer-events-none"
+                        style={{
+                            backgroundImage: `linear-gradient(45deg, #7c2d12 25%, transparent 25%, transparent 75%, #7c2d12 75%, #7c2d12), linear-gradient(45deg, #7c2d12 25%, transparent 25%, transparent 75%, #7c2d12 75%, #7c2d12)`,
+                            backgroundSize: '60px 60px',
+                            backgroundPosition: '0 0, 30px 30px'
+                        }} 
+                      />
+                      <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,transparent_0%,#000000_100%)]" />
+                      <div className="absolute inset-0 border-4 border-orange-700/50 rounded shadow-[0_0_50px_rgba(234,88,12,0.3)]" />
+                  </>
+              );
+
+          // LEVEL 5: Quantum / Void (Deep Purple/Black)
+          case 5:
+              return (
+                  <>
+                      <div className="absolute inset-0 bg-[#000000]" />
+                      <div className="absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_50%_50%,#2e1065_0%,transparent_60%)]" />
+                      <div 
+                        className="absolute inset-0 opacity-30 pointer-events-none animate-pulse-slow"
+                        style={{
+                            backgroundImage: `radial-gradient(white 1px, transparent 1px)`,
+                            backgroundSize: '40px 40px'
+                        }}
+                      />
+                      <div className="absolute inset-0 border-4 border-purple-900/50 rounded shadow-[0_0_80px_rgba(88,28,135,0.5)]" />
+                  </>
+              );
+
+          // LEVEL 6: Solar / Plasma (Red/Gold)
+          case 6:
+              return (
+                  <>
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#450a0a] to-[#7f1d1d]" />
+                      <div className="absolute inset-0 opacity-30 bg-[url('https://www.transparenttextures.com/patterns/fire-pattern.png')] mix-blend-color-dodge" />
+                      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.2),transparent_70%)]" />
+                      <div className="absolute inset-0 border-4 border-red-500/50 rounded shadow-[0_0_60px_rgba(220,38,38,0.5)]" />
+                  </>
+              );
+
+          // LEVEL 7: Ice / Cryo (Cyan/White/Blue)
+          case 7:
+              return (
+                  <>
+                      <div className="absolute inset-0 bg-gradient-to-br from-[#083344] to-[#1e3a8a]" />
+                      <div 
+                        className="absolute inset-0 opacity-20 pointer-events-none"
+                        style={{
+                            backgroundImage: `linear-gradient(30deg, #22d3ee 1px, transparent 1px)`,
+                            backgroundSize: '80px 80px'
+                        }}
+                      />
+                      <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.2),transparent_50%)]" />
+                      <div className="absolute inset-0 border-4 border-cyan-400/50 rounded shadow-[0_0_60px_rgba(34,211,238,0.4)]" />
+                  </>
+              );
+
+          // LEVEL 8: Toxic / Waste (Acid Green/Brown)
+          case 8:
+              return (
+                  <>
+                      <div className="absolute inset-0 bg-[#1a2e05]" />
+                      <div className="absolute inset-0 opacity-30 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/grunge-wall.png')] mix-blend-overlay" />
+                      <div 
+                         className="absolute inset-0 opacity-20 pointer-events-none"
+                         style={{
+                             backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 10px, #4d7c0f 10px, #4d7c0f 20px)`
+                         }}
+                      />
+                      <div className="absolute inset-0 border-4 border-lime-600/50 rounded shadow-[0_0_50px_rgba(101,163,13,0.4)]" />
+                  </>
+              );
+
+          // LEVEL 9: Nebula / Astral (Pink/Violet/Stars)
+          case 9:
+              return (
+                  <>
+                      <div className="absolute inset-0 bg-gradient-to-r from-[#4c0519] via-[#020617] to-[#4a044e]" />
+                      <div className="absolute inset-0 opacity-40 bg-[radial-gradient(ellipse_at_center,rgba(236,72,153,0.2),transparent_70%)]" />
+                      <div 
+                        className="absolute inset-0 opacity-50"
+                        style={{
+                            backgroundImage: `radial-gradient(white 2px, transparent 2px), radial-gradient(white 1px, transparent 1px)`,
+                            backgroundSize: '100px 100px, 40px 40px',
+                            backgroundPosition: '0 0, 20px 20px'
+                        }}
+                      />
+                      <div className="absolute inset-0 border-4 border-pink-500/30 rounded shadow-[0_0_90px_rgba(236,72,153,0.3)]" />
+                  </>
+              );
+
+          // LEVEL 10: Singularity / Omega (White/Rainbow/Glitch - The End)
+          default: // Level 10 and beyond
+              return (
+                  <>
+                      <div className="absolute inset-0 bg-[#ffffff]" />
+                      <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-300 opacity-90" />
+                      {/* Glitch Grid */}
+                      <div 
+                        className="absolute inset-0 opacity-10 pointer-events-none"
+                        style={{
+                            backgroundImage: `linear-gradient(90deg, #000 1px, transparent 1px), linear-gradient(#000 1px, transparent 1px)`,
+                            backgroundSize: '50px 50px'
+                        }}
+                      />
+                      {/* Prism Effect */}
+                      <div className="absolute inset-0 opacity-20 bg-gradient-to-r from-red-500 via-green-500 to-blue-500 mix-blend-overlay" />
+                      <div className="absolute inset-0 border-[10px] border-black rounded-xl shadow-[inset_0_0_100px_rgba(0,0,0,0.5)]" />
+                  </>
+              );
       }
   };
 

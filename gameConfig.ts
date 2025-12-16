@@ -35,7 +35,8 @@ export const GAME_CONFIG = {
       ATTACK_RADIUS: 80, // Same as wallet radius basically
       SPAWN_RATIO: 2, // 2 Intruders per Biobot
       SIZE: 40,
-      EXPLOSION_DURATION_MS: 1000 // Time for explosion animation
+      EXPLOSION_DURATION_MS: 1000, // Time for explosion animation
+      MAX_CONCURRENT: 15 // Performance Cap: Max intruders allowed at once
   },
   COMBAT: {
       MIN_DISTANCE: 150, // Range at 0% energy
@@ -70,23 +71,29 @@ export const GAME_CONFIG = {
   STRUCTURES: {
       GRID_SIZE: 40, // 40px blocks
       PRICES: {
-          FIREWALL: 8,
-          ENCRYPTION: 5
+          FIREWALL: 100, // Updated to 100
+          ENCRYPTION: 30  // Updated to 30
       },
       DURABILITY: {
           FIREWALL: 30000, // 30 seconds (Madera)
           ENCRYPTION: 60000 // 60 seconds (Metal/Gris)
       }
   },
+  COSTS: {
+      NEW_LAND: 500,
+      RECHARGE: 30,
+      NEW_BIOBOT: 70
+  },
   LEVELS: {
-      LVL2: {
-          MIN_CRYPTO: 8000,
-          MIN_ENERGY: 400
-      },
-      LVL3: {
-          MIN_CRYPTO: 16000,
-          MIN_ENERGY: 800
-      }
+      LVL2: { MIN_CRYPTO: 8000, MIN_ENERGY: 400 },
+      LVL3: { MIN_CRYPTO: 16000, MIN_ENERGY: 800 },
+      LVL4: { MIN_CRYPTO: 30000, MIN_ENERGY: 1500 },
+      LVL5: { MIN_CRYPTO: 50000, MIN_ENERGY: 3000 },
+      LVL6: { MIN_CRYPTO: 80000, MIN_ENERGY: 5000 },
+      LVL7: { MIN_CRYPTO: 120000, MIN_ENERGY: 8000 },
+      LVL8: { MIN_CRYPTO: 180000, MIN_ENERGY: 12000 },
+      LVL9: { MIN_CRYPTO: 250000, MIN_ENERGY: 18000 },
+      LVL10: { MIN_CRYPTO: 350000, MIN_ENERGY: 25000 }
   },
   GHOST_SYSTEM: {
       START_LEVEL: 2,

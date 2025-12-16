@@ -8,7 +8,28 @@ export const MUSIC_TRACKS_BY_LEVEL: Record<number, string> = {
   2: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
   
   // Level 3: Ascension/Space (Ethereal) - Stable Test Source
-  3: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3"
+  3: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+
+  // Level 4: Industrial / Core (Heavy Synth)
+  4: "https://cdn.pixabay.com/download/audio/2022/03/24/audio_c8c8a73467.mp3?filename=dark-drone-science-fiction-atmosphere-19676.mp3",
+
+  // Level 5: Quantum / Void (Mystery)
+  5: "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=cyberpunk-2099-10801.mp3",
+
+  // Level 6: Solar / Plasma (Energetic)
+  6: "https://cdn.pixabay.com/download/audio/2023/09/29/audio_0342e47765.mp3?filename=scifi-cyberpunk-trailer-168502.mp3",
+
+  // Level 7: Ice / Cryo (Crystalline)
+  7: "https://cdn.pixabay.com/download/audio/2022/10/25/audio_55a29792a7.mp3?filename=technology-background-11843.mp3",
+
+  // Level 8: Toxic / Waste (Aggressive)
+  8: "https://cdn.pixabay.com/download/audio/2021/09/06/audio_985530a6c0.mp3?filename=action-rock-1365.mp3",
+
+  // Level 9: Nebula / Astral (Dreamy)
+  9: "https://cdn.pixabay.com/download/audio/2022/11/02/audio_c0c8851453.mp3?filename=space-atmospheric-background-124470.mp3",
+
+  // Level 10: Singularity / Omega (Epic Final)
+  10: "https://cdn.pixabay.com/download/audio/2023/06/27/audio_967f67759a.mp3?filename=epic-cinematic-trailer-154948.mp3"
 };
 
 export const WATER_SOUND_URL = "https://cdn.pixabay.com/download/audio/2022/03/10/audio_5a26514785.mp3?filename=sci-fi-charge-up-37395.mp3";

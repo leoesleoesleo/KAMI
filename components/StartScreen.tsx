@@ -8,6 +8,9 @@ interface StartScreenProps {
   onContinue?: () => void;
 }
 
+// Resource URL provided
+const BRAND_LOGO_URL = "https://leoesleoesleo.github.io/imagenes/biobots_genesys.png";
+
 export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, onContinue }) => {
   const [name, setName] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_PRESETS[0]);
@@ -94,47 +97,64 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
           </button>
       </div>
 
-      <div className="relative z-10 w-full max-w-6xl p-4 md:p-8 flex flex-col items-center overflow-y-auto h-full md:h-auto justify-center scrollbar-hide">
+      {/* MAIN CONTAINER: Split Screen Layout */}
+      {/* md:flex-row-reverse allows "Right" column (Image) to be 2nd in DOM but appear on Right, 
+          while maintaining Image on TOP on mobile (flex-col) */}
+      <div className="relative z-10 w-full max-w-7xl p-4 md:p-8 flex flex-col md:flex-row-reverse items-center justify-center h-full overflow-y-auto scrollbar-hide gap-8 md:gap-16">
         
-        {/* DOMINANT TITLE SECTION - RESPONSIVE */}
-        <div className="text-center mb-6 md:mb-10 animate-title-pulse w-full px-4 flex flex-col items-center">
-            {/* ANIMATED GAME LOGO */}
-            <div className="relative mb-6">
-                <Cpu size={100} className="text-tech-cyan animate-spin-slow drop-shadow-[0_0_25px_rgba(6,182,212,0.6)]" />
-                <Binary size={50} className="text-neon-green absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
-            </div>
+        {/* --- RIGHT PANEL (Visual / Hero Image) --- */}
+        <div className="w-full md:w-1/2 flex flex-col items-center justify-center shrink-0 animate-fade-in-down mt-12 md:mt-0">
+            {/* Main Brand Image Container */}
+            <div className="relative group perspective-1000 mb-2">
+                {/* Back Glow Effect */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-tech-cyan/20 blur-[60px] rounded-full opacity-60 group-hover:opacity-80 transition-opacity duration-700 animate-pulse-slow" />
+                
+                {/* The Logo Image */}
+                <img 
+                    src={BRAND_LOGO_URL} 
+                    alt="BioBots: Génesis Evolutiva" 
+                    className="relative z-10 w-full max-w-[280px] sm:max-w-[450px] md:max-w-[600px] lg:max-w-[700px] h-auto object-contain drop-shadow-[0_0_30px_rgba(6,182,212,0.4)] transform transition-transform duration-700 group-hover:scale-105 group-hover:-rotate-1 animate-float"
+                />
 
-            <h1 className="text-4xl sm:text-6xl md:text-9xl font-tech font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-tech-cyan to-tech-purple drop-shadow-[0_0_25px_rgba(6,182,212,0.6)] tracking-tight leading-tight">
-              BioBots
-            </h1>
-            <h2 className="text-sm sm:text-xl md:text-3xl font-mono text-neon-green tracking-[0.3em] md:tracking-[0.5em] uppercase mt-2 drop-shadow-md break-words">
-              Génesis Evolutiva
-            </h2>
+                {/* Cyberpunk Decor Lines (Desktop Only) */}
+                <div className="absolute -left-12 top-1/2 w-20 h-[1px] bg-gradient-to-r from-transparent to-tech-cyan/50 hidden md:block" />
+                <div className="absolute -right-12 top-1/2 w-20 h-[1px] bg-gradient-to-l from-transparent to-tech-cyan/50 hidden md:block" />
+            </div>
         </div>
 
-        {/* MAIN INTERFACE GRID */}
-        <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 backdrop-blur-xl bg-slate-900/60 rounded-3xl border border-tech-cyan/20 shadow-[0_0_50px_rgba(6,182,212,0.1)] p-6 md:p-8">
-            {/* Left Col: Welcome & Form */}
-            <div className="flex flex-col justify-center space-y-6 md:space-y-8">
-            <div className="space-y-4 text-center md:text-left">
-                <p className="text-gray-400 font-mono text-xs md:text-sm leading-relaxed border-l-2 border-tech-cyan/50 pl-4">
-                Tu misión es construir, optimizar y expandir un ecosistema de BioBots capaces de evolucionar, minar recursos, aprender y adaptarse en un mundo gobernado por datos.
-                </p>
-            </div>
-
-            <div className="space-y-6">
+        {/* --- LEFT PANEL (Form & Controls) --- */}
+        <div className="w-full md:w-1/2 flex flex-col gap-6 max-w-xl animate-fade-in-up pb-8 md:pb-0">
+            
+            {/* Glass Panel: Consolidated Form & Avatar Selection */}
+            <div className="backdrop-blur-xl bg-slate-900/70 rounded-3xl border border-tech-cyan/20 shadow-[0_0_50px_rgba(6,182,212,0.1)] p-6 md:p-8 flex flex-col gap-6 relative overflow-hidden">
+                {/* Decorative corner glow */}
+                <div className="absolute top-0 left-0 w-20 h-20 bg-tech-cyan/5 blur-xl rounded-br-full" />
                 
+                {/* Version & Status Header */}
+                <div className="flex items-center gap-3 opacity-90 pb-4 border-b border-white/10">
+                    <div className="h-[1px] w-8 bg-gradient-to-r from-transparent to-neon-green" />
+                    <h2 className="text-xs font-mono text-neon-green tracking-[0.2em] uppercase flex items-center gap-2">
+                       <Cpu size={12} className="animate-spin-slow"/> v.{GAME_VERSION} • SIMULACIÓN ACTIVA
+                    </h2>
+                </div>
+
+                {/* Description */}
+                <p className="text-gray-300 font-mono text-xs md:text-sm leading-relaxed border-l-2 border-tech-cyan/50 pl-4">
+                    Tu misión es construir, optimizar y expandir un ecosistema de BioBots capaces de evolucionar, minar recursos, aprender y adaptarse en un mundo gobernado por datos.
+                </p>
+
                 {/* CONTINUE BUTTON */}
                 {hasSaveGame && onContinue && (
                     <button 
                     onClick={onContinue}
-                    className="w-full py-4 rounded-xl flex items-center justify-center gap-3 font-tech font-bold tracking-widest transition-all duration-300 relative overflow-hidden group bg-neon-green/20 text-neon-green border border-neon-green hover:bg-neon-green hover:text-black hover:shadow-[0_0_30px_rgba(34,197,94,0.6)] animate-pulse"
+                    className="w-full py-3 rounded-xl flex items-center justify-center gap-3 font-tech font-bold tracking-widest transition-all duration-300 relative overflow-hidden group bg-neon-green/20 text-neon-green border border-neon-green hover:bg-neon-green hover:text-black hover:shadow-[0_0_30px_rgba(34,197,94,0.6)] animate-pulse"
                     >
-                        <RefreshCcw size={20} fill="currentColor" />
+                        <RefreshCcw size={18} fill="currentColor" />
                         RESTAURAR SIMULACIÓN
                     </button>
                 )}
 
+                {/* NAME INPUT */}
                 <div className="relative group">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 text-tech-cyan group-focus-within:text-neon-green transition-colors" size={20} />
                     <input 
@@ -142,10 +162,42 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                         placeholder="Identificador de Arquitecto"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="w-full bg-black/40 border border-tech-cyan/30 rounded-xl py-4 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-tech-cyan focus:shadow-[0_0_15px_rgba(6,182,212,0.3)] transition-all font-mono"
+                        className="w-full bg-black/40 border border-tech-cyan/30 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-tech-cyan focus:shadow-[0_0_15px_rgba(6,182,212,0.3)] transition-all font-mono"
                     />
                 </div>
+
+                {/* AVATAR SELECTION COMPACT */}
+                <div className="space-y-3 bg-black/20 p-4 rounded-2xl border border-white/5">
+                    <div className="flex items-center justify-between">
+                        <h3 className="font-tech text-sm text-tech-purple flex items-center gap-2">
+                            <Cpu size={14}/> Selección de Avatar
+                        </h3>
+                        <div className="text-xs text-neon-green font-mono tracking-wider">{name ? name.toUpperCase() : "NO_DATA"}</div>
+                    </div>
+                    
+                    <div className="flex gap-4 items-center">
+                         {/* Large Preview */}
+                         <div className="relative w-16 h-16 md:w-20 md:h-20 shrink-0">
+                             <div className="absolute inset-0 bg-tech-cyan/20 rounded-full animate-pulse" />
+                             <img src={selectedAvatar} alt="Selected" className="w-full h-full rounded-full object-cover border-2 border-tech-cyan shadow-[0_0_15px_rgba(6,182,212,0.5)] bg-black/50" />
+                         </div>
+                         
+                         {/* Grid */}
+                         <div className="flex-1 grid grid-cols-5 gap-2">
+                            {AVATAR_PRESETS.map((avatar, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => setSelectedAvatar(avatar)}
+                                    className={`relative rounded-lg overflow-hidden aspect-square border transition-all duration-200 ${selectedAvatar === avatar ? 'border-tech-cyan scale-110 shadow-lg' : 'border-transparent hover:border-white/20 grayscale hover:grayscale-0 bg-black/30'}`}
+                                >
+                                    <img src={avatar} alt={`A${idx}`} className="w-full h-full object-cover" />
+                                </button>
+                            ))}
+                         </div>
+                    </div>
+                </div>
                 
+                {/* START BUTTON */}
                 <button 
                 onClick={() => name && onStart(name, selectedAvatar)}
                 disabled={!name}
@@ -157,81 +209,43 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                 </button>
             </div>
 
-            </div>
+            {/* SOCIAL STATS (Outside Panel) */}
+            <div className="grid grid-cols-2 gap-4">
+                 {/* Visit Counter */}
+                <div className="bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-xl p-3 flex items-center justify-between hover:bg-slate-800/60 transition-colors group cursor-default">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
+                            <Eye size={18} />
+                        </div>
+                        <div>
+                            <p className="text-[9px] text-gray-500 font-mono font-bold uppercase tracking-wider">Accesos</p>
+                            <p className="text-lg font-tech font-bold text-white group-hover:text-blue-200 transition-colors">
+                                {visitCount.toLocaleString()}
+                            </p>
+                        </div>
+                    </div>
+                    <Activity size={16} className="text-blue-500/20 group-hover:text-blue-400 transition-colors" />
+                </div>
 
-            {/* Right Col: Avatar Selection */}
-            <div className="flex flex-col space-y-6">
-            <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                <h3 className="font-tech text-lg text-tech-purple">Selección de Avatar</h3>
-                <Cpu size={16} className="text-tech-cyan animate-pulse" />
-            </div>
-            
-            <div className="grid grid-cols-5 gap-2 md:gap-3">
-                {AVATAR_PRESETS.map((avatar, idx) => (
-                <button
-                    key={idx}
-                    onClick={() => setSelectedAvatar(avatar)}
-                    className={`relative rounded-xl overflow-hidden aspect-square border-2 transition-all duration-300 ${selectedAvatar === avatar ? 'border-tech-cyan scale-110 shadow-[0_0_15px_rgba(6,182,212,0.5)] bg-tech-cyan/20' : 'border-transparent hover:border-white/20 grayscale hover:grayscale-0 bg-black/30'}`}
+                {/* Like Counter */}
+                <button 
+                    onClick={handleLike}
+                    className={`bg-slate-900/40 backdrop-blur-md border rounded-xl p-3 flex items-center justify-between transition-all group ${hasLiked ? 'border-neon-green/50 bg-neon-green/5 shadow-[0_0_15px_rgba(34,197,94,0.1)]' : 'border-white/10 hover:bg-slate-800/60'}`}
                 >
-                    <img src={avatar} alt={`Avatar ${idx}`} className="w-full h-full object-cover" />
+                    <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all group-hover:scale-110 ${hasLiked ? 'bg-neon-green/20 text-neon-green' : 'bg-pink-500/10 text-pink-500'}`}>
+                            <ThumbsUp size={18} className={hasLiked ? 'fill-current' : ''} />
+                        </div>
+                        <div className="text-left">
+                            <p className="text-[9px] text-gray-500 font-mono font-bold uppercase tracking-wider">Aprobación</p>
+                            <p className={`text-lg font-tech font-bold transition-colors ${hasLiked ? 'text-neon-green' : 'text-white'}`}>
+                                {likeCount.toLocaleString()}
+                            </p>
+                        </div>
+                    </div>
                 </button>
-                ))}
-            </div>
-            
-            <div className="flex-1 flex flex-col items-center justify-center mt-4 relative">
-                <div className="absolute inset-0 bg-tech-cyan/5 blur-3xl rounded-full" />
-                <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border-2 border-tech-cyan p-1 shadow-[0_0_30px_rgba(6,182,212,0.3)] bg-black/50 relative">
-                <div className="absolute inset-0 border-t-2 border-neon-green rounded-full animate-spin-slow" />
-                <div className="absolute inset-0 border-b-2 border-tech-purple rounded-full animate-spin-reverse" />
-                <img src={selectedAvatar} alt="Selected" className="w-full h-full rounded-full object-cover relative z-10" />
-                </div>
-                
-                <div className="mt-4 text-center">
-                    <p className="text-xs text-gray-500 font-mono mb-1">ARQUITECTO:</p>
-                    <p className="text-lg text-neon-green font-tech tracking-wider">
-                        {name || "NO_DATA"}
-                    </p>
-                </div>
-            </div>
-            </div>
-        </div>
-
-        {/* --- SOCIAL STATS BAR --- */}
-        <div className="w-full mt-6 grid grid-cols-2 gap-4 max-w-2xl animate-fade-in-up">
-            {/* Visit Counter */}
-            <div className="bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-xl p-3 md:p-4 flex items-center justify-between hover:bg-slate-800/60 transition-colors group cursor-default">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
-                        <Eye size={20} />
-                    </div>
-                    <div>
-                        <p className="text-[9px] md:text-[10px] text-gray-500 font-mono font-bold uppercase tracking-wider">Accesos al Sistema</p>
-                        <p className="text-lg md:text-2xl font-tech font-bold text-white group-hover:text-blue-200 transition-colors">
-                            {visitCount.toLocaleString()}
-                        </p>
-                    </div>
-                </div>
-                <Activity size={20} className="text-blue-500/20 group-hover:text-blue-400 transition-colors" />
             </div>
 
-            {/* Like Counter */}
-            <button 
-                onClick={handleLike}
-                className={`bg-slate-900/40 backdrop-blur-md border rounded-xl p-3 md:p-4 flex items-center justify-between transition-all group ${hasLiked ? 'border-neon-green/50 bg-neon-green/5 shadow-[0_0_15px_rgba(34,197,94,0.1)]' : 'border-white/10 hover:bg-slate-800/60 hover:border-pink-500/30'}`}
-            >
-                <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all group-hover:scale-110 ${hasLiked ? 'bg-neon-green/20 text-neon-green' : 'bg-pink-500/10 text-pink-500'}`}>
-                        <ThumbsUp size={20} className={hasLiked ? 'fill-current' : ''} />
-                    </div>
-                    <div className="text-left">
-                        <p className="text-[9px] md:text-[10px] text-gray-500 font-mono font-bold uppercase tracking-wider">Aprobación Global</p>
-                        <p className={`text-lg md:text-2xl font-tech font-bold transition-colors ${hasLiked ? 'text-neon-green' : 'text-white'}`}>
-                            {likeCount.toLocaleString()}
-                        </p>
-                    </div>
-                </div>
-                <div className={`w-2 h-2 rounded-full transition-all ${hasLiked ? 'bg-neon-green shadow-[0_0_10px_#10b981]' : 'bg-gray-700'}`} />
-            </button>
         </div>
 
       </div>

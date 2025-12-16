@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { StartScreen } from './components/StartScreen';
 import { WorldCanvas } from './components/WorldCanvas';
@@ -8,7 +6,7 @@ import { MusicPlayer } from './components/MusicPlayer';
 import { InstallPWA } from './components/InstallPWA';
 import { LoadingScreen } from './components/LoadingScreen';
 import { useGameLoop } from './hooks/useGameLoop';
-import { createPersonEntity, createLandEntity, createWalletEntity, createBlockEntity, createGhostNode, ensureOutsideWallet, createIntruderEntity, updateWorldState } from './services/gameService';
+import { createPersonEntity, createLandEntity, createWalletEntity, createBlockEntity, createGhostNode, ensureOutsideWallet, createIntruderEntity, updateWorldState, generateLevel1Layout } from './services/gameService';
 import { RuntimeTestRunner } from './services/RuntimeTestRunner';
 import { StorageService } from './services/storageService';
 import { AudioManager } from './services/AudioManager'; 
@@ -162,6 +160,13 @@ function App() {
       const waveInterval = setInterval(() => {
           if (gameStateRef.current.isPaused) return;
 
+          // Performance Optimization: Check Max Concurrent Intruders
+          const currentIntruders = gameStateRef.current.entities.filter(e => e.type === EntityType.INTRUDER).length;
+          
+          if (currentIntruders >= GAME_CONFIG.INTRUDER.MAX_CONCURRENT) {
+              return; // Limit reached
+          }
+
           const currentLevel = gameStateRef.current.level;
           // Count active bots (alive)
           const activeBots = gameStateRef.current.entities.filter(
@@ -169,7 +174,11 @@ function App() {
           ).length;
 
           // Logic: Spawn Count = Level * Active Bots
-          const spawnCount = currentLevel * activeBots;
+          let spawnCount = currentLevel * activeBots;
+          
+          // Cap spawn count to available slots
+          const slotsAvailable = GAME_CONFIG.INTRUDER.MAX_CONCURRENT - currentIntruders;
+          spawnCount = Math.min(spawnCount, slotsAvailable);
 
           if (spawnCount > 0) {
               const newIntruders: GameEntity[] = [];
@@ -199,14 +208,27 @@ function App() {
       
       let nextLevel = currentLevel;
 
-      if (currentLevel < 3) {
-          if (crypto > GAME_CONFIG.LEVELS.LVL3.MIN_CRYPTO || energy > GAME_CONFIG.LEVELS.LVL3.MIN_ENERGY) {
-              nextLevel = 3;
-          } 
-          else if (currentLevel < 2) {
-              if (crypto > GAME_CONFIG.LEVELS.LVL2.MIN_CRYPTO || energy > GAME_CONFIG.LEVELS.LVL2.MIN_ENERGY) {
-                  nextLevel = 2;
-              }
+      // Check against max level 10
+      if (currentLevel < 10) {
+          // Determine next level requirement
+          let requiredCrypto = Infinity;
+          let requiredEnergy = Infinity;
+
+          // Helper to get requirements from config dynamically or use defaults
+          const getReq = (lvl: number) => {
+              // @ts-ignore - Accessing config by index logic
+              const key = `LVL${lvl}`;
+              // @ts-ignore
+              if (GAME_CONFIG.LEVELS[key]) return GAME_CONFIG.LEVELS[key];
+              return { MIN_CRYPTO: Infinity, MIN_ENERGY: Infinity };
+          };
+
+          const req = getReq(currentLevel + 1);
+          requiredCrypto = req.MIN_CRYPTO;
+          requiredEnergy = req.MIN_ENERGY;
+
+          if (crypto >= requiredCrypto || energy >= requiredEnergy) {
+              nextLevel = currentLevel + 1;
           }
       }
 
@@ -336,13 +358,14 @@ function App() {
     AudioManager.playLevel(1, true);
 
     setIsPlaying(true);
-    const walletEntity = createWalletEntity();
+    // NEW: Use Level 1 Generator instead of just a single wallet
+    const initialEntities = generateLevel1Layout();
     
     setGameState(prev => ({
       ...prev,
       isPlaying: true,
       isPaused: false,
-      entities: [walletEntity], 
+      entities: initialEntities, 
       level: 1, 
       hasSpawnedIntruders: false,
       player: { 
@@ -411,14 +434,15 @@ function App() {
   };
 
   const handleRestartGame = () => {
-      const walletEntity = createWalletEntity();
+      // NEW: Use Level 1 Generator for Restart as well
+      const initialEntities = generateLevel1Layout();
       AudioManager.playLevel(1, true);
 
       setGameState(prev => ({
         ...prev,
         isWatering: false,
         isPaused: false,
-        entities: [walletEntity], 
+        entities: initialEntities, 
         level: 1,
         hasSpawnedIntruders: false,
         player: {
@@ -444,7 +468,8 @@ function App() {
   };
 
   const handleSingleNodeRecharge = (nodeId: string) => {
-      if (gameState.player.points < ACTION_COST) {
+      const COST = GAME_CONFIG.COSTS.RECHARGE;
+      if (gameState.player.points < COST) {
         setWastedManaTrigger(prev => prev + 1); // Trigger mana toast
         setIsTargetingRecharge(false);
         return;
@@ -454,8 +479,8 @@ function App() {
           ...prev,
           player: {
               ...prev.player,
-              points: prev.player.points - ACTION_COST,
-              stats: { ...prev.player.stats, manaSpent: prev.player.stats.manaSpent + ACTION_COST }
+              points: prev.player.points - COST,
+              stats: { ...prev.player.stats, manaSpent: prev.player.stats.manaSpent + COST }
           },
           entities: prev.entities.map(e => {
               if (e.id === nodeId && e.type === EntityType.LAND && e.landAttributes) {
@@ -516,6 +541,32 @@ function App() {
 
   const handleAction = (actionType: string, payload?: any) => {
     
+    // --- CHEAT CODE ACTION HANDLER ---
+    if (actionType === 'ACTIVATE_LEVEL_CHEAT') {
+        const { level, crypto } = payload;
+        
+        setGameState(prev => ({
+            ...prev,
+            level: level,
+            player: {
+                ...prev.player,
+                stats: {
+                    ...prev.player.stats,
+                    // Cheat Math: To "give" crypto, we adjust `cryptoSpent`.
+                    // Available = GlobalScore - CryptoSpent.
+                    // We want Available = Crypto (payload).
+                    // So: Crypto = GlobalScore - NewSpent
+                    // NewSpent = GlobalScore - Crypto
+                    cryptoSpent: globalStats.globalScore - crypto
+                }
+            }
+        }));
+        
+        setShowLevelBanner(`NIVEL ${level} DESBLOQUEADO`);
+        setTimeout(() => setShowLevelBanner(null), 3000);
+        return;
+    }
+
     if (actionType === 'BUY_STRUCTURE') {
         const { type, quantity, totalCost } = payload;
         
@@ -888,7 +939,8 @@ function App() {
         return;
     }
 
-    if (gameState.player.points < ACTION_COST) return;
+    const COST = GAME_CONFIG.COSTS.NEW_LAND;
+    if (gameState.player.points < COST) return;
 
     const newLand = createLandEntity(safePos);
     
@@ -897,8 +949,8 @@ function App() {
         entities: [...prev.entities, newLand],
         player: { 
             ...prev.player, 
-            points: prev.player.points - ACTION_COST,
-            stats: { ...prev.player.stats, landsCreated: prev.player.stats.landsCreated + 1, manaSpent: prev.player.stats.manaSpent + ACTION_COST, cryptoSpent: prev.player.stats.cryptoSpent || 0 } 
+            points: prev.player.points - COST,
+            stats: { ...prev.player.stats, landsCreated: prev.player.stats.landsCreated + 1, manaSpent: prev.player.stats.manaSpent + COST, cryptoSpent: prev.player.stats.cryptoSpent || 0 } 
         }
     }));
     
@@ -910,7 +962,8 @@ function App() {
       const safePos = ensureOutsideWallet(position);
 
       if (!pendingPersonAttributes) return;
-      if (gameState.player.points < ACTION_COST) return;
+      const COST = GAME_CONFIG.COSTS.NEW_BIOBOT;
+      if (gameState.player.points < COST) return;
 
       const newPerson = createPersonEntity(pendingPersonAttributes, safePos);
       
@@ -919,8 +972,8 @@ function App() {
           entities: [...prev.entities, newPerson],
           player: { 
               ...prev.player, 
-              points: prev.player.points - ACTION_COST,
-              stats: { ...prev.player.stats, entitiesCreated: prev.player.stats.entitiesCreated + 1, manaSpent: prev.player.stats.manaSpent + ACTION_COST, cryptoSpent: prev.player.stats.cryptoSpent || 0 } 
+              points: prev.player.points - COST,
+              stats: { ...prev.player.stats, entitiesCreated: prev.player.stats.entitiesCreated + 1, manaSpent: prev.player.stats.manaSpent + COST, cryptoSpent: prev.player.stats.cryptoSpent || 0 } 
           }
       }));
 

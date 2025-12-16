@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef, useEffect } from 'react';
 import { PlayerState, GameEntity, Gender, INITIAL_POINTS, ACTION_COST, EntityType, BlockType } from '../types';
 import { Bot, Database, Zap, Pickaxe, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle, HardDrive, LogOut, RotateCcw, HeartPulse, ArrowRightLeft, Wallet, Hammer, Shield, Lock, Box, ChevronUp, Ghost, Pause, Play, Settings, Save, Swords, Share2, Link, Globe, Users, SquareDashedMousePointer, Dna, ShieldCheck, Microscope, ScanSearch, Flame } from 'lucide-react';
@@ -186,8 +184,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       }
   }, [selectedEntity]);
 
-  const checkManaAndExecute = (action: () => void) => {
-    if (player.points < ACTION_COST) {
+  const checkManaAndExecute = (action: () => void, cost: number = ACTION_COST) => {
+    if (player.points < cost) {
         setShowManaToast(true);
         setTimeout(() => setShowManaToast(false), 3000);
     } else {
@@ -209,7 +207,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         setModalOpen(false);
         setCreationName('');
         setActiveMenu(null);
-    });
+    }, GAME_CONFIG.COSTS.NEW_BIOBOT);
   };
 
   const handleWorkProtocol = (entityId?: string) => {
@@ -229,7 +227,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
           if (entityId && selectedEntity?.id === entityId) {
               onCloseSelection();
           }
-      });
+      }, ACTION_COST);
   };
 
   const handleAttackProtocol = (entityId: string) => {
@@ -386,15 +384,50 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   };
 
   const handleRedeemCode = () => {
+      // Legacy code
       if (redeemCode === '1866') {
           onBuyMana(100);
           setRedeemCode('');
           setPlayerProfileOpen(false); 
           setShowSuccessMana(true);
           setTimeout(() => setShowSuccessMana(false), 3000);
-      } else {
-          alert("Código de acceso denegado");
+          return;
+      } 
+      
+      // --- NEW SECRET LEVEL CODES (#secret00bio01 to #secret00bio10) ---
+      const secretPattern = /^#secret00bio(0[1-9]|10)$/;
+      if (secretPattern.test(redeemCode)) {
+          // Extract level (01 -> 1, 10 -> 10)
+          const levelStr = redeemCode.replace('#secret00bio', '');
+          const targetLevel = parseInt(levelStr, 10);
+
+          // Get required Crypto for this level from Config
+          let targetCrypto = 0;
+          
+          if (targetLevel === 1) {
+              targetCrypto = 1000; // Starter Bonus
+          } else {
+              // Access GAME_CONFIG dynamically (safe because GAME_CONFIG is imported)
+              // @ts-ignore
+              const configKey = `LVL${targetLevel}`;
+              // @ts-ignore
+              const levelConfig = GAME_CONFIG.LEVELS[configKey];
+              if (levelConfig) {
+                  targetCrypto = levelConfig.MIN_CRYPTO;
+              }
+          }
+
+          // Trigger Cheat Action
+          onAction('ACTIVATE_LEVEL_CHEAT', { level: targetLevel, crypto: targetCrypto });
+          
+          // UI Feedback
+          setRedeemCode('');
+          setPlayerProfileOpen(false);
+          // We don't show success toast here, App will show Level Banner
+          return;
       }
+
+      alert("Código de acceso denegado");
   };
 
   const handleShareGame = async () => {
@@ -1322,7 +1355,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                                         className="w-full bg-blue-600/20 border border-blue-500 text-blue-400 hover:bg-blue-500 hover:text-white transition-all py-3 rounded-lg flex items-center justify-center gap-2 font-bold font-tech tracking-wider text-sm shadow-[0_0_15px_rgba(59,130,246,0.3)] mt-2"
                                     >
                                         <Zap size={18} />
-                                        RECARGAR ENERGÍA (-{ACTION_COST})
+                                        RECARGAR ENERGÍA (-{GAME_CONFIG.COSTS.RECHARGE})
                                     </button>
                                 </div>
                             )}
@@ -1378,7 +1411,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                                                         className="w-full bg-orange-600/20 border border-orange-500 text-orange-400 hover:bg-orange-500 hover:text-white transition-all py-3 rounded-lg flex items-center justify-center gap-2 font-bold font-tech tracking-wider text-sm shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.6)]"
                                                     >
                                                         <Pickaxe size={18} />
-                                                        MINAR
+                                                        MINAR (-{ACTION_COST})
                                                     </button>
 
                                                     {/* EVOLVED BETA: TOGGLE WORK MODE */}
@@ -1509,7 +1542,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 
                       {/* Create Node */}
                       <button 
-                        onClick={() => checkManaAndExecute(() => { onAction('CREATE_LAND'); setActiveMenu(null); })}
+                        onClick={() => checkManaAndExecute(() => { onAction('CREATE_LAND'); setActiveMenu(null); }, GAME_CONFIG.COSTS.NEW_LAND)}
                         className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-white transition-colors w-48"
                       >
                           <div className="p-2 bg-neon-green/20 rounded text-neon-green"><Database size={20}/></div>
@@ -1636,40 +1669,34 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                     </div>
 
                     <div>
-                         <label className="block text-sm font-bold text-gray-400 mb-1 font-mono">Designación</label>
-                         <input 
+                        <label className="block text-sm font-bold text-gray-400 mb-1 font-mono">Identificador (Opcional)</label>
+                        <input 
                             type="text" 
-                            className="w-full bg-slate-800 border border-slate-600 rounded p-2 focus:border-tech-cyan outline-none text-white font-mono"
-                            placeholder="Ej: X-99"
+                            className="w-full bg-black/40 border border-slate-700 rounded p-3 text-white focus:border-tech-cyan outline-none transition-colors font-mono"
+                            placeholder="Ej: Unit-734"
                             value={creationName}
                             onChange={(e) => setCreationName(e.target.value)}
-                         />
+                        />
                     </div>
 
-                    <div className="pt-4 flex gap-2">
+                    <div className="pt-2 flex gap-3">
                         <button 
                             onClick={() => setModalOpen(false)}
-                            className="flex-1 py-3 text-gray-400 hover:bg-slate-800 rounded transition-colors text-sm md:text-base font-mono border border-transparent"
+                            className="flex-1 py-3 rounded-lg border border-slate-600 text-gray-400 hover:text-white hover:bg-slate-800 transition-all font-bold font-mono"
                         >
                             CANCELAR
                         </button>
                         <button 
                             onClick={handleCreatePerson}
-                            className="flex-1 py-3 bg-tech-cyan/20 border border-tech-cyan text-tech-cyan font-bold rounded hover:bg-tech-cyan hover:text-black transition-all text-sm md:text-base font-mono shadow-[0_0_15px_rgba(6,182,212,0.3)]"
+                            className="flex-1 py-3 rounded-lg bg-tech-cyan text-black font-bold font-tech hover:bg-cyan-400 transition-all shadow-[0_0_20px_rgba(6,182,212,0.4)]"
                         >
-                            INICIAR (-{ACTION_COST})
+                            INICIAR GÉNESIS (-{GAME_CONFIG.COSTS.NEW_BIOBOT}⚡)
                         </button>
                     </div>
                 </div>
             </div>
         </div>
       )}
-      
-      {/* MINIMAP */}
-      <div className="pointer-events-auto absolute right-4 bottom-32 md:bottom-32 z-30">
-        <Minimap entities={entities} />
-      </div>
-
     </div>
   );
-};
+}
