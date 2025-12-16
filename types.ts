@@ -7,7 +7,8 @@ export enum EntityType {
   BLOCK = 'BLOCK',
   INTRUDER = 'INTRUDER', // New Entity Type: Matrix Sentinel
   TORNADO = 'TORNADO', // Level 3 Obstacle
-  BLACK_HOLE = 'BLACK_HOLE', // New Entity Type: Level 4 Obstacle
+  BLACK_HOLE = 'BLACK_HOLE', // Level 4 Obstacle
+  EXPLOSION = 'EXPLOSION', // Level 5 Obstacle
 }
 
 export enum BlockType {
@@ -59,6 +60,12 @@ export interface BlackHoleAttributes {
     moveAngle: number;
 }
 
+export interface ExplosionAttributes {
+    creationTime: number;
+    duration: number;
+    radius: number;
+}
+
 export interface EntityAttributes {
   nombre: string;
   sexo: Gender;
@@ -104,6 +111,7 @@ export interface GameEntity {
   intruderAttributes?: IntruderAttributes; // Only for intruders
   tornadoAttributes?: TornadoAttributes; // Only for tornadoes
   blackHoleAttributes?: BlackHoleAttributes; // Only for black holes
+  explosionAttributes?: ExplosionAttributes; // Only for explosions
   avatarUrl?: string;
   createdAt: number;
 }

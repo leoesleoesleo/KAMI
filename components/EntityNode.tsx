@@ -106,6 +106,55 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
       );
   }
 
+  // --- EXPLOSION RENDER (LEVEL 5 OBSTACLE) - REALISTIC GRENADE EFFECT ---
+  if (entity.type === EntityType.EXPLOSION) {
+      const radius = entity.explosionAttributes?.radius || GAME_CONFIG.EXPLOSION.RADIUS;
+      const size = radius * 2;
+      
+      // Randomize debris angles for CSS vars
+      const particles = [
+          { tx: '50px', ty: '-50px', delay: '0s' },
+          { tx: '-60px', ty: '-30px', delay: '0.1s' },
+          { tx: '20px', ty: '60px', delay: '0.05s' },
+          { tx: '-40px', ty: '40px', delay: '0.15s' },
+          { tx: '60px', ty: '10px', delay: '0.02s' },
+          { tx: '0px', ty: '-70px', delay: '0.08s' },
+      ];
+
+      return (
+          <div 
+              className="absolute transform -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none"
+              style={{ left: entity.position.x, top: entity.position.y, width: size, height: size }}
+          >
+              {/* 1. Scorch Mark (Bottom Layer) */}
+              <div className="absolute inset-2 bg-black/60 rounded-full blur-md opacity-50 scale-125 z-0 animate-[fadeIn_0.1s_ease-out]" />
+
+              {/* 2. Shockwave Ring (Expansion) */}
+              <div className="absolute inset-0 border-4 border-white/50 rounded-full animate-shockwave-expand z-10" />
+
+              {/* 3. Dark Smoke Cloud (Lingering) */}
+              <div className="absolute inset-[-20px] bg-gray-800/40 rounded-full blur-xl animate-smoke-expand z-20" />
+
+              {/* 4. Core Flash (Bright White/Yellow Burst) */}
+              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-yellow-100 via-orange-300 to-red-500 blur-sm animate-grenade-flash z-30" />
+
+              {/* 5. Flying Debris (Shrapnel) */}
+              {particles.map((p, i) => (
+                  <div 
+                    key={i}
+                    className="absolute top-1/2 left-1/2 w-1.5 h-1.5 bg-yellow-200 rounded-sm animate-debris-scatter z-40"
+                    style={{ 
+                        // @ts-ignore
+                        '--tx': p.tx, 
+                        '--ty': p.ty,
+                        animationDelay: p.delay
+                    }}
+                  />
+              ))}
+          </div>
+      );
+  }
+
   // --- TORNADO RENDER (LEVEL 3 OBSTACLE) ---
   if (entity.type === EntityType.TORNADO) {
       const radius = GAME_CONFIG.TORNADO.DESTRUCTION_RADIUS; // ~30px

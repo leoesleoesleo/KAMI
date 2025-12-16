@@ -279,6 +279,23 @@ export const createBlackHoleEntity = (): GameEntity => {
     };
 };
 
+export const createExplosionEntity = (): GameEntity => {
+    // Spawn near Wallet (random location in radius)
+    const position = generateRandomPosition(WALLET_CENTER, GAME_CONFIG.EXPLOSION.SPAWN_RANGE);
+    
+    return {
+        id: generateUUID(),
+        type: EntityType.EXPLOSION,
+        position,
+        explosionAttributes: {
+            creationTime: Date.now(),
+            duration: GAME_CONFIG.EXPLOSION.DURATION_MS,
+            radius: GAME_CONFIG.EXPLOSION.RADIUS
+        },
+        createdAt: Date.now()
+    };
+};
+
 // --- INITIAL LEVEL 1 LAYOUT GENERATOR ---
 export const generateLevel1Layout = (): GameEntity[] => {
     const center = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
@@ -1225,14 +1242,13 @@ export const updateWorldState = (
     const blocks = entities.filter(e => e.type === EntityType.BLOCK);
     const tornadoes = entities.filter(e => e.type === EntityType.TORNADO);
     const blackHoles = entities.filter(e => e.type === EntityType.BLACK_HOLE);
+    const explosions = entities.filter(e => e.type === EntityType.EXPLOSION);
     const wallet = entities.find(e => e.type === EntityType.WALLET);
 
-    // Entities marked for destruction by hazards (Tornado/BlackHole)
+    // Entities marked for destruction by hazards (Tornado/BlackHole/Explosion)
     const destructionSet = new Set<string>();
 
     const nextEntities: GameEntity[] = [];
-    const activeTornadoes: GameEntity[] = [];
-    const activeBlackHoles: GameEntity[] = [];
 
     // --- HAZARD 1: TORNADOES ---
     for (const tornado of tornadoes) {
@@ -1241,7 +1257,6 @@ export const updateWorldState = (
             continue; // Remove expired
         }
         const updatedTornado = processTornado(tornado, now);
-        activeTornadoes.push(updatedTornado);
         nextEntities.push(updatedTornado);
 
         const tPos = updatedTornado.position;
@@ -1269,7 +1284,6 @@ export const updateWorldState = (
             continue; // Remove expired
         }
         const updatedBH = processBlackHole(bh, now);
-        activeBlackHoles.push(updatedBH);
         nextEntities.push(updatedBH);
 
         const bPos = updatedBH.position;
@@ -1287,6 +1301,32 @@ export const updateWorldState = (
         });
         blocks.forEach(block => {
             if (checkCollision(block.position, BLOCK_COLLISION_RADIUS, bPos, radius)) destructionSet.add(block.id);
+        });
+    }
+
+    // --- HAZARD 3: EXPLOSIONS (LEVEL 5) ---
+    for (const exp of explosions) {
+        if (!exp.explosionAttributes) continue;
+        if (now - exp.explosionAttributes.creationTime > exp.explosionAttributes.duration) {
+            continue; // Remove expired explosion
+        }
+        
+        nextEntities.push(exp);
+        const ePos = exp.position;
+        const radius = exp.explosionAttributes.radius;
+
+        // Collision Checks (Destroy everything except Wallet)
+        biobots.forEach(bot => {
+            if (checkCollision(bot.position, BIOBOT_COLLISION_RADIUS, ePos, radius)) destructionSet.add(bot.id);
+        });
+        intruders.forEach(intruder => {
+            if (checkCollision(intruder.position, INTRUDER_COLLISION_RADIUS, ePos, radius)) destructionSet.add(intruder.id);
+        });
+        lands.forEach(land => {
+            if (checkCollision(land.position, 20, ePos, radius)) destructionSet.add(land.id);
+        });
+        blocks.forEach(block => {
+            if (checkCollision(block.position, BLOCK_COLLISION_RADIUS, ePos, radius)) destructionSet.add(block.id);
         });
     }
 

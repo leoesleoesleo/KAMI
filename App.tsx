@@ -8,7 +8,7 @@ import { MusicPlayer } from './components/MusicPlayer';
 import { InstallPWA } from './components/InstallPWA';
 import { LoadingScreen } from './components/LoadingScreen';
 import { useGameLoop } from './hooks/useGameLoop';
-import { createPersonEntity, createLandEntity, createWalletEntity, createBlockEntity, createGhostNode, ensureOutsideWallet, createIntruderEntity, updateWorldState, generateLevel1Layout, createTornadoEntity, createBlackHoleEntity } from './services/gameService';
+import { createPersonEntity, createLandEntity, createWalletEntity, createBlockEntity, createGhostNode, ensureOutsideWallet, createIntruderEntity, updateWorldState, generateLevel1Layout, createTornadoEntity, createBlackHoleEntity, createExplosionEntity } from './services/gameService';
 import { RuntimeTestRunner } from './services/RuntimeTestRunner';
 import { StorageService } from './services/storageService';
 import { AudioManager } from './services/AudioManager'; 
@@ -252,6 +252,38 @@ function App() {
 
   }, [isPlaying, gameState.level, gameState.isPaused]);
 
+  // --- EXPLOSION SPAWNER (LEVEL 5+) ---
+  useEffect(() => {
+    if (!isPlaying || gameState.isPaused) return;
+    if (gameState.level < 5) return; // Active from Level 5
+
+    const spawnExplosionWave = () => {
+        // Use PARAMETRIZED CONSTANTS from GAME_CONFIG
+        const min = GAME_CONFIG.EXPLOSION.MIN_COUNT;
+        const max = GAME_CONFIG.EXPLOSION.MAX_COUNT;
+        const numExplosions = Math.floor(Math.random() * (max - min + 1)) + min;
+        
+        const explosions: GameEntity[] = [];
+        for (let i = 0; i < numExplosions; i++) {
+            explosions.push(createExplosionEntity());
+        }
+
+        if (explosions.length > 0) {
+            setGameState(prev => ({
+                ...prev,
+                entities: [...prev.entities, ...explosions]
+            }));
+        }
+    };
+
+    const explosionInterval = setInterval(() => {
+        if (!gameStateRef.current.isPaused) {
+            spawnExplosionWave();
+        }
+    }, GAME_CONFIG.EXPLOSION.SPAWN_INTERVAL_MS);
+
+    return () => clearInterval(explosionInterval);
+  }, [isPlaying, gameState.level, gameState.isPaused]);
 
   // --- LEVEL UP LOGIC & INITIAL INTRUDER SPAWNING ---
   useEffect(() => {
