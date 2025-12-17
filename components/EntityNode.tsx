@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { GameEntity, EntityType, BlockType } from '../types';
-import { Server, Wallet, Cpu, Shield, Lock, Box, Activity, Crosshair, Radar, ChevronUp, Wind } from 'lucide-react';
+import { Server, Wallet, Cpu, Shield, Lock, Box, Activity, Crosshair, Radar, ChevronUp, Wind, UserSquare } from 'lucide-react';
 import { GAME_CONFIG } from '../gameConfig';
 import { WALLET_CENTER } from '../services/gameService';
 
@@ -188,6 +188,100 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
               {/* Debris Particles */}
               <div className="absolute -top-4 -left-4 w-2 h-2 bg-gray-500 rounded animate-bounce" />
               <div className="absolute -bottom-2 -right-2 w-1.5 h-1.5 bg-white rounded animate-ping" />
+          </div>
+      );
+  }
+
+  // --- AGENT RENDER (LEVEL 6+) ---
+  if (entity.type === EntityType.AGENT) {
+      const isAttacking = entity.agentAttributes?.state === 'attacking';
+      const targetPos = entity.agentAttributes?.combatTargetPosition;
+      
+      return (
+          <div 
+              className="absolute z-50 pointer-events-none"
+              style={{ left: entity.position.x, top: entity.position.y }}
+          >
+              {/* 1. THE BEAM ATTACK (Dynamic SVG Line) */}
+              {isAttacking && targetPos && (
+                  <svg className="absolute top-0 left-0 overflow-visible w-1 h-1 pointer-events-none z-0">
+                      <defs>
+                          <linearGradient id="agentBeamGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                              <stop offset="0%" stopColor="#10b981" />
+                              <stop offset="50%" stopColor="#000000" />
+                              <stop offset="100%" stopColor="#10b981" />
+                          </linearGradient>
+                          <filter id="glitchFilter">
+                             <feTurbulence type="turbulence" baseFrequency="0.5" numOctaves="2" result="turbulence" />
+                             <feDisplacementMap in2="turbulence" in="SourceGraphic" scale="5" xChannelSelector="R" yChannelSelector="G" />
+                          </filter>
+                      </defs>
+                      
+                      {/* Core Beam - Green Code Stream */}
+                      <line 
+                        x1="0" y1="0" 
+                        x2={targetPos.x - entity.position.x} 
+                        y2={targetPos.y - entity.position.y} 
+                        stroke="url(#agentBeamGrad)" 
+                        strokeWidth="3"
+                        strokeDasharray="10, 5"
+                        className="animate-beam-pulse"
+                      />
+                      
+                      {/* Glitch Overlay Effect */}
+                      <line 
+                        x1="0" y1="0" 
+                        x2={targetPos.x - entity.position.x} 
+                        y2={targetPos.y - entity.position.y} 
+                        stroke="#10b981" 
+                        strokeWidth="6"
+                        opacity="0.4"
+                        filter="url(#glitchFilter)"
+                        className="animate-pulse"
+                      />
+
+                      {/* Impact Point */}
+                      <g transform={`translate(${targetPos.x - entity.position.x}, ${targetPos.y - entity.position.y})`}>
+                          <circle r="15" fill="none" stroke="#10b981" strokeWidth="2" className="animate-ping opacity-80" />
+                          <circle r="8" fill="#10b981" className="animate-pulse opacity-50 blur-sm" />
+                          {/* Code bits flying off */}
+                          <text x="5" y="-5" fill="#10b981" fontSize="10" className="font-mono animate-bounce opacity-80">1</text>
+                          <text x="-5" y="5" fill="#10b981" fontSize="10" className="font-mono animate-bounce opacity-80">0</text>
+                      </g>
+                  </svg>
+              )}
+
+              {/* 2. THE FACE (Agent Smith Style) */}
+              <div className="absolute transform -translate-x-1/2 -translate-y-1/2 animate-agent-float z-20">
+                  {/* Pale Head Shape */}
+                  <div className="w-10 h-12 bg-slate-200 rounded-[40%] shadow-[0_0_20px_rgba(16,185,129,0.3)] border border-slate-400/50 relative overflow-hidden">
+                      
+                      {/* Digital Aura / Glitch inside head */}
+                      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-green-900/10 to-transparent animate-digital-rain opacity-30 pointer-events-none" />
+
+                      {/* Sunglasses (Black Rectangles) */}
+                      <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-1 w-full justify-center">
+                          <div className="w-3.5 h-2 bg-black rounded-sm relative">
+                              {/* Glint on glasses */}
+                              <div className="absolute top-0.5 right-0.5 w-1 h-1 bg-white opacity-40 rounded-full" />
+                          </div>
+                          <div className="w-0.5 h-0.5 bg-black mt-1" /> {/* Bridge */}
+                          <div className="w-3.5 h-2 bg-black rounded-sm relative">
+                               {/* Glint on glasses */}
+                              <div className="absolute top-0.5 right-0.5 w-1 h-1 bg-white opacity-40 rounded-full" />
+                          </div>
+                      </div>
+
+                      {/* Mouth (Stern / Evil) */}
+                      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-3 h-0.5 bg-slate-600 rounded-full" />
+                      
+                      {/* Earpiece / Tech Detail */}
+                      <div className="absolute top-5 -right-0.5 w-1 h-3 bg-gray-800 rounded-l-sm" />
+                  </div>
+              </div>
+              
+              {/* Shadow underneath */}
+              <div className="absolute top-8 left-1/2 -translate-x-1/2 w-6 h-1 bg-black/50 blur-sm rounded-full animate-pulse" />
           </div>
       );
   }

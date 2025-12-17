@@ -90,16 +90,19 @@
               'cloud-enter': 'cloudEnter 0.5s ease-out forwards',
               'digital-rain': 'digitalRain 1s linear infinite',
               'energy-beam': 'energyBeam 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards',
-              'flash-burst': 'flashBurst 0.5s ease-out forwards',
-              'shockwave-expand': 'shockwaveExpand 0.6s ease-out forwards',
+              'flash-burst': 'flashBurst 0.8s ease-out forwards', // Slower flash
+              'shockwave-expand': 'shockwaveExpand 1.2s ease-out forwards', // Slower shockwave
               'energy-flow': 'energyFlow 1s linear infinite',
               'title-pulse': 'titlePulse 4s ease-in-out infinite',
               'connection-flash': 'connectionFlash 0.3s ease-out forwards',
               'thruster-burn': 'thrusterBurn 0.1s infinite',
-              // Grenade Explosions
-              'grenade-flash': 'grenadeFlash 0.15s ease-out forwards',
-              'debris-scatter': 'debrisScatter 0.6s ease-out forwards',
-              'smoke-expand': 'smokeExpand 1.2s ease-out forwards',
+              // Grenade Explosions (Slower & More Realistic)
+              'grenade-flash': 'grenadeFlash 0.4s ease-out forwards',
+              'debris-scatter': 'debrisScatter 1.5s ease-out forwards',
+              'smoke-expand': 'smokeExpand 2.4s ease-out forwards',
+              // Agent Specific
+              'agent-float': 'agentFloat 2s ease-in-out infinite',
+              'beam-pulse': 'beamPulse 0.1s linear infinite',
             },
             keyframes: {
               fadeIn: {
@@ -217,6 +220,15 @@
               smokeExpand: {
                 '0%': { transform: 'scale(0.5)', opacity: '0.8', filter: 'blur(2px)' },
                 '100%': { transform: 'scale(2.5)', opacity: '0', filter: 'blur(10px)' }
+              },
+              agentFloat: {
+                '0%, 100%': { transform: 'translate(-50%, -50%) translateY(0)' },
+                '50%': { transform: 'translate(-50%, -50%) translateY(-5px)' }
+              },
+              beamPulse: {
+                '0%': { opacity: '0.6', strokeWidth: '2' },
+                '50%': { opacity: '1', strokeWidth: '4' },
+                '100%': { opacity: '0.6', strokeWidth: '2' }
               }
             }
           },

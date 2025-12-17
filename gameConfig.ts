@@ -33,8 +33,19 @@ export const GAME_CONFIG = {
       ATTACK_RADIUS: 80,
       SPAWN_RATIO: 2,
       SIZE: 40,
-      EXPLOSION_DURATION_MS: 1000,
+      EXPLOSION_DURATION_MS: 2000, // Increased to match visual FX
       MAX_CONCURRENT: 15
+  },
+  AGENT: {
+      SPEED: 0.6, // Reduced from 0.9 for better balance
+      ATTACK_RANGE: 160, 
+      DAMAGE_PER_FRAME: 2.0, 
+      SPAWN_INTERVAL_MS: 45000,
+      MAX_CONCURRENT: 3,
+      START_LEVEL: 6,
+      // KILL DURATION SETTINGS (MS)
+      KILL_DURATION_BASE_L1: 3000, // BioBot Lvl 1 takes up to 3s to die
+      KILL_DURATION_BASE_L2: 6000  // BioBot Lvl 2 takes up to 6s to die
   },
   TORNADO: {
       SPEED: 1.2,
@@ -54,10 +65,10 @@ export const GAME_CONFIG = {
   },
   EXPLOSION: {
       RADIUS: 40,
-      DURATION_MS: 1200, // Increased to allow smoke/debris animation to finish
-      SPAWN_INTERVAL_MS: 30000, // Time between waves
-      MIN_COUNT: 1, // Minimum explosions per wave
-      MAX_COUNT: 3, // Maximum explosions per wave
+      DURATION_MS: 2500, // Increased from 1200 for slower, realistic effect
+      SPAWN_INTERVAL_MS: 20000, 
+      MIN_COUNT: 1, 
+      MAX_COUNT: 3, 
       SPAWN_RANGE: 850
   },
   COMBAT: {

@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { GameEntity, EntityType, Vector2 } from '../types';
 import { WORLD_SIZE } from '../constants';
@@ -53,6 +54,10 @@ export const Minimap: React.FC<MinimapProps> = ({ entities }) => {
                     colorClass = 'bg-red-600 shadow-[0_0_8px_rgba(220,38,38,1)] animate-ping';
                     sizeClass = 'w-2 h-2 rounded-full';
                     zIndex = 30; // On top of everything
+                } else if (entity.type === EntityType.AGENT) {
+                    colorClass = 'bg-white shadow-[0_0_10px_rgba(255,255,255,1)] animate-pulse border border-gray-400';
+                    sizeClass = 'w-2.5 h-2.5 rounded-sm'; // Square shape for Agents
+                    zIndex = 35; // Top priority
                 }
 
                 return (

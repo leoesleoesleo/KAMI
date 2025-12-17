@@ -8,7 +8,7 @@ import { MusicPlayer } from './components/MusicPlayer';
 import { InstallPWA } from './components/InstallPWA';
 import { LoadingScreen } from './components/LoadingScreen';
 import { useGameLoop } from './hooks/useGameLoop';
-import { createPersonEntity, createLandEntity, createWalletEntity, createBlockEntity, createGhostNode, ensureOutsideWallet, createIntruderEntity, updateWorldState, generateLevel1Layout, createTornadoEntity, createBlackHoleEntity, createExplosionEntity } from './services/gameService';
+import { createPersonEntity, createLandEntity, createWalletEntity, createBlockEntity, createGhostNode, ensureOutsideWallet, createIntruderEntity, updateWorldState, generateLevel1Layout, createTornadoEntity, createBlackHoleEntity, createExplosionEntity, createAgentEntity } from './services/gameService';
 import { RuntimeTestRunner } from './services/RuntimeTestRunner';
 import { StorageService } from './services/storageService';
 import { AudioManager } from './services/AudioManager'; 
@@ -283,6 +283,32 @@ function App() {
     }, GAME_CONFIG.EXPLOSION.SPAWN_INTERVAL_MS);
 
     return () => clearInterval(explosionInterval);
+  }, [isPlaying, gameState.level, gameState.isPaused]);
+
+  // --- AGENT SPAWNER (LEVEL 6+) ---
+  useEffect(() => {
+    if (!isPlaying || gameState.isPaused) return;
+    if (gameState.level < GAME_CONFIG.AGENT.START_LEVEL) return; // Active from Level 6
+
+    const spawnAgent = () => {
+        const currentAgents = gameStateRef.current.entities.filter(e => e.type === EntityType.AGENT).length;
+        if (currentAgents < GAME_CONFIG.AGENT.MAX_CONCURRENT) {
+             const agent = createAgentEntity();
+             setGameState(prev => ({
+                 ...prev,
+                 entities: [...prev.entities, agent]
+             }));
+        }
+    };
+
+    const agentInterval = setInterval(() => {
+         if (!gameStateRef.current.isPaused) {
+            spawnAgent();
+         }
+    }, GAME_CONFIG.AGENT.SPAWN_INTERVAL_MS);
+
+    return () => clearInterval(agentInterval);
+
   }, [isPlaying, gameState.level, gameState.isPaused]);
 
   // --- LEVEL UP LOGIC & INITIAL INTRUDER SPAWNING ---

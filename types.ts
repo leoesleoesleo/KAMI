@@ -6,6 +6,7 @@ export enum EntityType {
   WALLET = 'WALLET',
   BLOCK = 'BLOCK',
   INTRUDER = 'INTRUDER', // New Entity Type: Matrix Sentinel
+  AGENT = 'AGENT', // New Entity Type: The Agent (Level 6+)
   TORNADO = 'TORNADO', // Level 3 Obstacle
   BLACK_HOLE = 'BLACK_HOLE', // Level 4 Obstacle
   EXPLOSION = 'EXPLOSION', // Level 5 Obstacle
@@ -46,6 +47,15 @@ export interface IntruderAttributes {
     isEngaged?: boolean; // Stopped by combat
     isDying?: boolean; // Exploding sequence
     deathTimestamp?: number; // When death started
+}
+
+export interface AgentAttributes {
+    state: 'seeking' | 'attacking';
+    targetId?: string; // Target BioBot ID
+    combatTargetPosition?: Vector2; // NEW: Track target position for rendering beam
+    lastShotTime?: number; // For visual cadence
+    currentAttackStart?: number; // NEW: Timestamp when continuous attack started (for calculating kill duration)
+    isDying?: boolean; // Destroyed by hazard
 }
 
 export interface TornadoAttributes {
@@ -109,6 +119,7 @@ export interface GameEntity {
   landAttributes?: LandAttributes; // Only for land
   blockAttributes?: BlockAttributes; // Only for blocks
   intruderAttributes?: IntruderAttributes; // Only for intruders
+  agentAttributes?: AgentAttributes; // Only for agents
   tornadoAttributes?: TornadoAttributes; // Only for tornadoes
   blackHoleAttributes?: BlackHoleAttributes; // Only for black holes
   explosionAttributes?: ExplosionAttributes; // Only for explosions
