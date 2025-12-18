@@ -1,15 +1,14 @@
 
-
 export enum EntityType {
   PERSON = 'PERSON',
   LAND = 'LAND',
   WALLET = 'WALLET',
   BLOCK = 'BLOCK',
-  INTRUDER = 'INTRUDER', // New Entity Type: Matrix Sentinel
-  AGENT = 'AGENT', // New Entity Type: The Agent (Level 6+)
-  TORNADO = 'TORNADO', // Level 3 Obstacle
-  BLACK_HOLE = 'BLACK_HOLE', // Level 4 Obstacle
-  EXPLOSION = 'EXPLOSION', // Level 5 Obstacle
+  INTRUDER = 'INTRUDER', 
+  AGENT = 'AGENT', 
+  TORNADO = 'TORNADO', 
+  BLACK_HOLE = 'BLACK_HOLE', 
+  EXPLOSION = 'EXPLOSION', 
 }
 
 export enum BlockType {
@@ -18,8 +17,8 @@ export enum BlockType {
 }
 
 export enum Gender {
-  MALE = 'ALFA', // Replaced Masculino
-  FEMALE = 'BETA', // Replaced Femenino
+  MALE = 'ALFA', 
+  FEMALE = 'BETA', 
 }
 
 export interface Vector2 {
@@ -28,40 +27,41 @@ export interface Vector2 {
 }
 
 export interface LandAttributes {
-  resourceLevel: number; // 0 - 100
-  emptySince?: number; // Timestamp when resource became 0
-  isGhost?: boolean; // Flag for auto-generated ghost servers
+  resourceLevel: number; 
+  emptySince?: number; 
+  isGhost?: boolean; 
 }
 
 export interface BlockAttributes {
     type: BlockType;
     durability: number;
-    variant?: number; // For visual variety
+    variant?: number; 
 }
 
 export interface IntruderAttributes {
-    state: 'seeking' | 'attacking' | 'attacking_structure'; // Added attacking_structure state
-    targetId: string; // Usually the Core Wallet ID or Block ID
-    attackStartTime?: number; // Timestamp when attack on structure started
-    tentaclePhase: number; // For animation
-    isEngaged?: boolean; // Stopped by combat
-    isDying?: boolean; // Exploding sequence
-    deathTimestamp?: number; // When death started
+    state: 'seeking' | 'attacking' | 'attacking_structure'; 
+    targetId: string; 
+    attackStartTime?: number; 
+    tentaclePhase: number; 
+    isEngaged?: boolean; 
+    isDying?: boolean; 
+    deathTimestamp?: number; 
 }
 
 export interface AgentAttributes {
     state: 'seeking' | 'attacking';
-    targetId?: string; // Target BioBot ID
-    combatTargetPosition?: Vector2; // NEW: Track target position for rendering beam
-    lastShotTime?: number; // For visual cadence
-    currentAttackStart?: number; // NEW: Timestamp when continuous attack started (for calculating kill duration)
-    isDying?: boolean; // Destroyed by hazard
+    targetId?: string; 
+    combatTargetPosition?: Vector2; 
+    lastShotTime?: number; 
+    currentAttackStart?: number; 
+    isDying?: boolean; 
+    deathTimestamp?: number; // Añadido para secuencia de destrucción
 }
 
 export interface TornadoAttributes {
     creationTime: number;
-    duration: number; // How long it lasts in ms
-    wanderAngle: number; // Current movement direction
+    duration: number; 
+    wanderAngle: number; 
 }
 
 export interface BlackHoleAttributes {
@@ -80,33 +80,28 @@ export interface EntityAttributes {
   nombre: string;
   sexo: Gender;
   edad: number;
-  energia: number; // 0-100
-  estado: 'ocioso' | 'trabajando' | 'caminando' | 'socializando' | 'alimentandose' | 'muerto' | 'peleando' | 'cazando' | 'recolectando'; // Added 'recolectando'
-  workEndTime?: number; // Timestamp when work finishes
+  energia: number; 
+  estado: 'ocioso' | 'trabajando' | 'caminando' | 'socializando' | 'alimentandose' | 'muerto' | 'peleando' | 'cazando' | 'recolectando'; 
+  workEndTime?: number; 
   personalidad: string;
   fuerza: number;
   inteligencia: number;
   individualScore: number;
-  holdingCryptos: number; // New: Crypto currently carried by the bot, not yet deposited
-  // Evolution Stats
-  evolutionLevel: number; // 1 = Standard, 2 = Evolved
-  jobsCompleted: number; // Count for BETA evolution
-  kills: number; // Count for ALFA evolution
-  combatMode?: 'hunter' | 'guardian'; // New: Tactical Mode for Evolved Alfas
-  workMode?: 'miner' | 'collector'; // New: Working Mode for Evolved Betas
-  // Death Mechanics
-  zeroEnergySince?: number; // Timestamp when energy hit 0
-  deathTimestamp?: number; // Timestamp when death occurred
-  // Combat Mechanics
+  holdingCryptos: number; 
+  evolutionLevel: number; 
+  jobsCompleted: number; 
+  kills: number; 
+  combatMode?: 'hunter' | 'guardian'; 
+  workMode?: 'miner' | 'collector'; 
+  zeroEnergySince?: number; 
+  deathTimestamp?: number; 
   combatTargetId?: string;
   combatTargetPosition?: Vector2;
   combatEndTime?: number;
-  // Special Attacks
-  isPerformingSpecial?: boolean; // Flag for Titan Mode
-  // Work Mechanics
-  workTargetId?: string; // ID of land being targeted
-  workTargetPosition?: Vector2; // Position to move to for work
-  lastJobIncrement?: number; // New: Cooldown tracker for job increments
+  isPerformingSpecial?: boolean; 
+  workTargetId?: string; 
+  workTargetPosition?: Vector2; 
+  lastJobIncrement?: number; 
 }
 
 export interface GameEntity {
@@ -115,14 +110,14 @@ export interface GameEntity {
   position: Vector2;
   targetPosition?: Vector2;
   velocity?: Vector2;
-  attributes?: EntityAttributes; // Only for people
-  landAttributes?: LandAttributes; // Only for land
-  blockAttributes?: BlockAttributes; // Only for blocks
-  intruderAttributes?: IntruderAttributes; // Only for intruders
-  agentAttributes?: AgentAttributes; // Only for agents
-  tornadoAttributes?: TornadoAttributes; // Only for tornadoes
-  blackHoleAttributes?: BlackHoleAttributes; // Only for black holes
-  explosionAttributes?: ExplosionAttributes; // Only for explosions
+  attributes?: EntityAttributes; 
+  landAttributes?: LandAttributes; 
+  blockAttributes?: BlockAttributes; 
+  intruderAttributes?: IntruderAttributes; 
+  agentAttributes?: AgentAttributes; 
+  tornadoAttributes?: TornadoAttributes; 
+  blackHoleAttributes?: BlackHoleAttributes; 
+  explosionAttributes?: ExplosionAttributes; 
   avatarUrl?: string;
   createdAt: number;
 }
@@ -131,7 +126,7 @@ export interface PlayerStats {
   entitiesCreated: number;
   manaSpent: number;
   landsCreated: number;
-  cryptoSpent: number; // New field for exchange history
+  cryptoSpent: number; 
 }
 
 export interface PlayerState {
@@ -143,13 +138,13 @@ export interface PlayerState {
 
 export interface GameState {
   isPlaying: boolean;
-  isPaused: boolean; // New Pause State
+  isPaused: boolean; 
   isWatering: boolean; 
   entities: GameEntity[];
   player: PlayerState;
-  level: number; // New Level Tracking
-  isLogViewerOpen?: boolean; // New state for Log Viewer
-  hasSpawnedIntruders?: boolean; // Flag to prevent multiple waves at level 3
+  level: number; 
+  isLogViewerOpen?: boolean; 
+  hasSpawnedIntruders?: boolean; 
 }
 
 export const INITIAL_POINTS = 50;
