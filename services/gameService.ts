@@ -1,4 +1,3 @@
-
 import { EntityAttributes, Gender, Vector2, EntityType, GameEntity, LandAttributes, BlockType } from '../types';
 import { WORLD_SIZE } from '../constants';
 import { GAME_CONFIG } from '../gameConfig';
@@ -12,9 +11,10 @@ export const WALLET_CENTER = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
 export const WALLET_SAFE_RADIUS = 90; 
 const BIOBOT_COLLISION_RADIUS = 15;
 const INTRUDER_COLLISION_RADIUS = 15;
-const AGENT_COLLISION_RADIUS = 15; 
-const BLOCK_COLLISION_RADIUS = 25; 
-const BLOCK_AVOIDANCE_RADIUS = 45; // Radio donde el bot empieza a "sentir" el bloque para rodearlo
+const AGENT_COLLISION_RADIUS = 18; // Aumentado ligeramente para mayor margen
+const BLOCK_COLLISION_RADIUS = 28; // Aumentado para evitar solapamiento visual
+const BLOCK_AVOIDANCE_RADIUS = 45; 
+const AGENT_AVOIDANCE_RADIUS = 85; // Detección más temprana para maniobras fluidas
 
 // --- UTILITY FUNCTIONS ---
 
@@ -86,7 +86,6 @@ export const findSafeSpawnPosition = (entities: GameEntity[], preferredPosition:
         
         if (!collision) return currentPos;
         
-        // Move outwards in spiral/random fashion
         const angle = Math.random() * Math.PI * 2;
         currentPos.x += Math.cos(angle) * 60;
         currentPos.y += Math.sin(angle) * 60;
@@ -304,7 +303,6 @@ export const generateLevel1Layout = (): GameEntity[] => {
         entities.push(createBlockEntity(type, { x, y }));
     };
 
-    // Helper for geometric patterns
     const placeCubicLayer = (radius: number, firewallRatio: number = 0.2) => {
         for (let x = -radius; x <= radius; x++) {
             for (let y = -radius; y <= radius; y++) {
@@ -316,15 +314,14 @@ export const generateLevel1Layout = (): GameEntity[] => {
     };
 
     switch (layoutType) {
-        case 0: // EL LABERINTO CUÁNTICO
+        case 0: 
             for (let r = 2; r <= 6; r += 2) {
                 placeCubicLayer(r, 0.1);
             }
             addLand(center.x - 4 * GRID, center.y - 4 * GRID);
             addLand(center.x + 4 * GRID, center.y + 4 * GRID);
             break;
-
-        case 1: // LA CRUZ DE ENCRIPTACIÓN
+        case 1: 
             for (let i = 2; i < 8; i++) {
                 addBlock(center.x + i * GRID, center.y, i % 4 === 0);
                 addBlock(center.x - i * GRID, center.y, i % 4 === 0);
@@ -334,8 +331,7 @@ export const generateLevel1Layout = (): GameEntity[] => {
             addLand(center.x + 8 * GRID, center.y);
             addLand(center.x - 8 * GRID, center.y);
             break;
-
-        case 2: // EL DIAMANTE MODULAR
+        case 2: 
             for (let i = 1; i <= 5; i++) {
                 addBlock(center.x + i * GRID, center.y + (5 - i) * GRID, i === 3);
                 addBlock(center.x - i * GRID, center.y + (5 - i) * GRID, i === 3);
@@ -345,8 +341,7 @@ export const generateLevel1Layout = (): GameEntity[] => {
             addLand(center.x, center.y + 6 * GRID);
             addLand(center.x, center.y - 6 * GRID);
             break;
-
-        case 3: // LOS PILARES BINARIOS
+        case 3: 
             for (let x = -4; x <= 4; x += 8) {
                 for (let y = -5; y <= 5; y++) {
                     addBlock(center.x + x * GRID, center.y + y * GRID, y === 0);
@@ -355,15 +350,13 @@ export const generateLevel1Layout = (): GameEntity[] => {
             addLand(center.x, center.y + 4 * GRID);
             addLand(center.x, center.y - 4 * GRID);
             break;
-
-        case 4: // EL NÚCLEO PROTEGIDO (Capas densas de madera)
+        case 4: 
             placeCubicLayer(2, 0);
             placeCubicLayer(3, 0.3);
             addLand(center.x - 5 * GRID, center.y);
             addLand(center.x + 5 * GRID, center.y);
             break;
-
-        case 5: // RAMIFICACIONES VECTORES
+        case 5: 
             for (let i = 2; i < 7; i++) {
                 addBlock(center.x + i * GRID, center.y + i * GRID, i === 5);
                 addBlock(center.x - i * GRID, center.y - i * GRID, i === 5);
@@ -373,8 +366,7 @@ export const generateLevel1Layout = (): GameEntity[] => {
             addLand(center.x + 7 * GRID, center.y + 7 * GRID);
             addLand(center.x - 7 * GRID, center.y - 7 * GRID);
             break;
-
-        case 6: // LA ESTRELLA DE CIFRADO
+        case 6: 
             for (let r = 3; r <= 6; r++) {
                 addBlock(center.x + r * GRID, center.y, false);
                 addBlock(center.x - r * GRID, center.y, false);
@@ -385,8 +377,7 @@ export const generateLevel1Layout = (): GameEntity[] => {
             }
             addLand(center.x, center.y + 8 * GRID);
             break;
-
-        case 7: // DOBLE HEXÁGONO CÚBICO
+        case 7: 
             [4, 7].forEach(r => {
                 for (let i = -r; i <= r; i++) {
                     addBlock(center.x + i * GRID, center.y + r * GRID, i === 0);
@@ -396,8 +387,7 @@ export const generateLevel1Layout = (): GameEntity[] => {
             addLand(center.x - 9 * GRID, center.y);
             addLand(center.x + 9 * GRID, center.y);
             break;
-
-        case 8: // PATRÓN DE AJEDREZ DIGITAL
+        case 8: 
             for (let x = -4; x <= 4; x++) {
                 for (let y = -4; y <= 4; y++) {
                     if ((Math.abs(x) + Math.abs(y)) % 2 === 0 && Math.abs(x) + Math.abs(y) > 2) {
@@ -407,8 +397,7 @@ export const generateLevel1Layout = (): GameEntity[] => {
             }
             addLand(center.x + 6 * GRID, center.y + 6 * GRID);
             break;
-
-        case 9: // EL TUNEL DE DATOS
+        case 9: 
             for (let y = -6; y <= 6; y++) {
                 if (Math.abs(y) < 2) continue;
                 addBlock(center.x - 2 * GRID, center.y + y * GRID, Math.abs(y) === 6);
@@ -417,8 +406,7 @@ export const generateLevel1Layout = (): GameEntity[] => {
             addLand(center.x, center.y + 8 * GRID);
             addLand(center.x, center.y - 8 * GRID);
             break;
-
-        case 10: // LA MATRIZ DE SEGURIDAD
+        case 10: 
             for (let x = -5; x <= 5; x += 2) {
                 for (let y = -5; y <= 5; y += 2) {
                     if (x === 0 && y === 0) continue;
@@ -427,8 +415,7 @@ export const generateLevel1Layout = (): GameEntity[] => {
             }
             addLand(center.x + 7 * GRID, center.y);
             break;
-
-        case 11: // CASCADA DE BLOQUES
+        case 11: 
             for (let i = 1; i < 6; i++) {
                 addBlock(center.x + i * GRID, center.y + i * GRID, false);
                 addBlock(center.x + (i + 1) * GRID, center.y + i * GRID, true);
@@ -437,8 +424,7 @@ export const generateLevel1Layout = (): GameEntity[] => {
             }
             addLand(center.x + 8 * GRID, center.y);
             break;
-
-        case 12: // EL ESCUDO DE SANTIAGO
+        case 12: 
             placeCubicLayer(3, 0);
             for (let i = -1; i <= 1; i++) {
                 addBlock(center.x + i * GRID, center.y + 4 * GRID, true);
@@ -446,8 +432,7 @@ export const generateLevel1Layout = (): GameEntity[] => {
             }
             addLand(center.x, center.y + 6 * GRID);
             break;
-
-        case 13: // RAMAS FRACTALES
+        case 13: 
             [3, 6].forEach(dist => {
                 addBlock(center.x + dist * GRID, center.y, true);
                 addBlock(center.x - dist * GRID, center.y, true);
@@ -459,8 +444,7 @@ export const generateLevel1Layout = (): GameEntity[] => {
             });
             addLand(center.x + 8 * GRID, center.y + 2 * GRID);
             break;
-
-        case 14: // EL RELOJ DE ARENA
+        case 14: 
             for (let x = -4; x <= 4; x++) {
                 addBlock(center.x + x * GRID, center.y + 4 * GRID, Math.abs(x) === 4);
                 addBlock(center.x + x * GRID, center.y - 4 * GRID, Math.abs(x) === 4);
@@ -472,8 +456,7 @@ export const generateLevel1Layout = (): GameEntity[] => {
             }
             addLand(center.x + 6 * GRID, center.y);
             break;
-
-        case 15: // ORBITAS CUADRADAS
+        case 15: 
             [3, 5, 7].forEach(r => {
                 addBlock(center.x + r * GRID, center.y + r * GRID, r === 7);
                 addBlock(center.x - r * GRID, center.y - r * GRID, r === 7);
@@ -482,8 +465,7 @@ export const generateLevel1Layout = (): GameEntity[] => {
             });
             addLand(center.x + 9 * GRID, center.y + 9 * GRID);
             break;
-
-        case 16: // LA CIUDADELA
+        case 16: 
             for (let x = -5; x <= 5; x++) {
                 if (Math.abs(x) < 3) continue;
                 addBlock(center.x + x * GRID, center.y + 3 * GRID, false);
@@ -493,8 +475,7 @@ export const generateLevel1Layout = (): GameEntity[] => {
             addBlock(center.x + 5 * GRID, center.y, true);
             addLand(center.x, center.y - 6 * GRID);
             break;
-
-        case 17: // EL TRIDENTE
+        case 17: 
             for (let x = -3; x <= 3; x += 3) {
                 for (let y = 3; y <= 7; y++) {
                     addBlock(center.x + x * GRID, center.y + y * GRID, y === 7);
@@ -502,8 +483,7 @@ export const generateLevel1Layout = (): GameEntity[] => {
             }
             addLand(center.x, center.y - 5 * GRID);
             break;
-
-        case 18: // LA RED NEURONAL
+        case 18: 
             for (let i = 0; i < 12; i++) {
                 const angle = (i / 12) * Math.PI * 2;
                 const r = 5 + Math.sin(i) * 2;
@@ -511,8 +491,7 @@ export const generateLevel1Layout = (): GameEntity[] => {
             }
             addLand(center.x + 10 * GRID, center.y);
             break;
-
-        case 19: // EL PATRÓN OMEGA
+        case 19: 
             for (let angle = 0; angle < Math.PI * 1.5; angle += 0.3) {
                 const r = 6;
                 addBlock(center.x + Math.cos(angle) * r * GRID, center.y + Math.sin(angle) * r * GRID, false);
@@ -538,10 +517,12 @@ const hasLineOfSight = (start: Vector2, end: Vector2, blocks: GameEntity[]): boo
     const lenSq = dx * dx + dy * dy;
     if (lenSq === 0) return true;
 
+    const RAY_BLOCK_RADIUS = 32;
+
     for (const block of blocks) {
         const t = Math.max(0, Math.min(1, ((block.position.x - start.x) * dx + (block.position.y - start.y) * dy) / lenSq));
         const distSq = Math.pow(block.position.x - (start.x + t * dx), 2) + Math.pow(block.position.y - (start.y + t * dy), 2);
-        if (distSq < BLOCK_COLLISION_RADIUS * BLOCK_COLLISION_RADIUS) return false;
+        if (distSq < RAY_BLOCK_RADIUS * RAY_BLOCK_RADIUS) return false;
     }
     return true;
 };
@@ -667,43 +648,84 @@ export const processAgent = (entity: GameEntity, biobots: GameEntity[], blocks: 
         return { ...entity, agentAttributes: attr };
     }
 
-    // AJUSTE: LOS AGENTES YA NO ATACAN, SOLO BUSCAN/PERSEGUIR
-    attr.state = 'seeking';
-    attr.currentAttackStart = undefined;
-
     let targetBot = attr.targetId ? biobots.find(b => b.id === attr.targetId) : undefined;
-    if (!targetBot || targetBot.attributes?.estado === 'muerto' || (targetBot.attributes?.energia || 0) <= 0) {
+    if (!targetBot || targetBot.attributes?.estado === 'muerto') {
         attr.targetId = undefined;
-        targetBot = biobots.filter(b => b.attributes?.estado !== 'muerto' && (b.attributes?.energia || 0) > 0)
+        targetBot = biobots.filter(b => b.attributes?.estado !== 'muerto')
             .sort((a, b) => Math.sqrt(Math.pow(a.position.x - entity.position.x, 2) + Math.pow(a.position.y - entity.position.y, 2)) - Math.sqrt(Math.pow(b.position.x - entity.position.x, 2) + Math.pow(b.position.y - entity.position.y, 2)))[0];
         if (targetBot) attr.targetId = targetBot.id;
     }
 
+    const range = GAME_CONFIG.AGENT.ATTACK_RANGE;
     const baseSpeed = GAME_CONFIG.AGENT.SPEED;
-    let nextX = entity.position.x;
-    let nextY = entity.position.y;
+    
+    let moveDirX = 0;
+    let moveDirY = 0;
 
     if (targetBot) {
         attr.combatTargetPosition = targetBot.position;
         const dx = targetBot.position.x - entity.position.x;
         const dy = targetBot.position.y - entity.position.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        const distToTarget = Math.sqrt(dx * dx + dy * dy);
         
-        if (dist > 5) {
-            nextX += (dx / dist) * baseSpeed;
-            nextY += (dy / dist) * baseSpeed;
+        const hasLoS = hasLineOfSight(entity.position, targetBot.position, blocks);
+
+        if (distToTarget <= range && hasLoS) {
+            attr.state = 'attacking';
+            if (!attr.currentAttackStart) attr.currentAttackStart = now;
+            return { ...entity, agentAttributes: attr }; 
+        } else {
+            attr.state = 'seeking';
+            attr.currentAttackStart = undefined;
+            
+            moveDirX = dx / distToTarget;
+            moveDirY = dy / distToTarget;
+
+            blocks.forEach(b => {
+                const toBlockX = b.position.x - entity.position.x;
+                const toBlockY = b.position.y - entity.position.y;
+                const distToBlock = Math.sqrt(toBlockX * toBlockX + toBlockY * toBlockY);
+
+                if (distToBlock < AGENT_AVOIDANCE_RADIUS) {
+                    const dot = (toBlockX * moveDirX + toBlockY * moveDirY) / distToBlock;
+                    
+                    if (dot > 0.2) { 
+                        const repulsionPower = Math.pow((AGENT_AVOIDANCE_RADIUS - distToBlock) / AGENT_AVOIDANCE_RADIUS, 2);
+                        moveDirX -= (toBlockX / distToBlock) * repulsionPower * 4.0;
+                        moveDirY -= (toBlockY / distToBlock) * repulsionPower * 4.0;
+
+                        const perpX = -toBlockY / distToBlock;
+                        const perpY = toBlockX / distToBlock;
+                        
+                        const steerStrength = (AGENT_AVOIDANCE_RADIUS - distToBlock) / AGENT_AVOIDANCE_RADIUS;
+                        moveDirX += perpX * steerStrength * 3.0;
+                        moveDirY += perpY * steerStrength * 3.0;
+                    }
+                }
+            });
         }
     } else {
+        attr.state = 'seeking';
         const seed = getEntitySeed(entity.id);
-        nextX += Math.cos(now * 0.001 + seed) * baseSpeed;
-        nextY += Math.sin(now * 0.0013 + seed) * baseSpeed;
+        moveDirX = Math.cos(now * 0.001 + seed);
+        moveDirY = Math.sin(now * 0.0013 + seed);
     }
 
-    // AJUSTE: COLISIÓN RÍGIDA CON BLOQUES PARA AGENTES (NO PUEDEN PASAR POR ENCIMA NI DEBAJO)
+    const mag = Math.sqrt(moveDirX * moveDirX + moveDirY * moveDirY);
+    const finalDirX = (moveDirX / mag) * baseSpeed;
+    const finalDirY = (moveDirY / mag) * baseSpeed;
+
+    const nextX = entity.position.x + finalDirX;
+    const nextY = entity.position.y + finalDirY;
+
     const collidedBlock = blocks.find(b => checkCollision({ x: nextX, y: nextY }, AGENT_COLLISION_RADIUS, b.position, BLOCK_COLLISION_RADIUS));
     if (!collidedBlock) {
         entity.position.x = Math.max(0, Math.min(WORLD_SIZE, nextX));
         entity.position.y = Math.max(0, Math.min(WORLD_SIZE, nextY));
+    } else {
+        const angleToBlock = Math.atan2(entity.position.y - collidedBlock.position.y, entity.position.x - collidedBlock.position.x);
+        entity.position.x = collidedBlock.position.x + Math.cos(angleToBlock) * (BLOCK_COLLISION_RADIUS + AGENT_COLLISION_RADIUS + 2);
+        entity.position.y = collidedBlock.position.y + Math.sin(angleToBlock) * (BLOCK_COLLISION_RADIUS + AGENT_COLLISION_RADIUS + 2);
     }
 
     return { ...entity, agentAttributes: attr };
@@ -723,7 +745,6 @@ export const processBioBot = (entity: GameEntity, entities: GameEntity[], now: n
 
     const isEvolved = (attr.evolutionLevel || 1) >= 2;
     
-    // UMBRAL DE SEGURIDAD: 15% para Alfas (Combate), 5% para Betas (Trabajo)
     const combatSafetyThreshold = (attr.sexo === Gender.MALE) ? 15 : 5;
     const isLowEnergy = attr.energia <= combatSafetyThreshold;
     const isRecharging = attr.estado === 'alimentandose';
@@ -735,7 +756,6 @@ export const processBioBot = (entity: GameEntity, entities: GameEntity[], now: n
         if (d < minDist) { minDist = d; nearestLand = l; }
     });
 
-    // --- TERMINACIÓN DE CICLO PARA NIVEL 1 ---
     const isNodeDepleted = nearestLand && (nearestLand.landAttributes?.resourceLevel || 0) <= 0;
     
     if (attr.estado === 'trabajando' && !isEvolved) {
@@ -746,24 +766,20 @@ export const processBioBot = (entity: GameEntity, entities: GameEntity[], now: n
         }
     }
 
-    // PRIORIDAD Y SUPERVIVENCIA:
     const isEngagedInCombat = attr.estado === 'peleando' || attr.estado === 'cazando';
     const hasCriticalEnergy = isLowEnergy;
 
-    // RETIRADA TÁCTICA PARA ALFAS: Si energía <= 15% (incluyendo 0%), abortar combate inmediatamente
     if (attr.sexo === Gender.MALE && isLowEnergy && isEngagedInCombat) {
         attr.estado = 'ocioso';
         attr.combatTargetId = undefined;
         attr.combatTargetPosition = undefined;
     }
 
-    // Lógica de Alimentación Automática
     if ((!isEngagedInCombat || (attr.estado === 'cazando' && hasCriticalEnergy)) && (isLowEnergy || isRecharging) && nearestLand && nearestLand.landAttributes && nearestLand.landAttributes.resourceLevel > 0 && minDist < GAME_CONFIG.BIOBOT.FEEDING_RADIUS) {
         attr.estado = 'alimentandose';
         attr.energia = Math.min(100, attr.energia + GAME_CONFIG.BIOBOT.ENERGY_RECHARGE_RATE);
         nearestLand.landAttributes.resourceLevel = Math.max(0, nearestLand.landAttributes.resourceLevel - 0.08);
         
-        // Al terminar de recargar al 100%, volver a estar ocioso para que la auto-asignación lo tome
         if (attr.energia >= 100) {
             attr.estado = 'ocioso';
         }
@@ -782,7 +798,6 @@ export const processBioBot = (entity: GameEntity, entities: GameEntity[], now: n
         }
     }
 
-    // LÓGICA DE AUTO-ASIGNACIÓN (Solo si tiene energía suficiente)
     if (!hasCriticalEnergy && attr.evolutionLevel > 1 && (attr.estado === 'ocioso' || attr.estado === 'recolectando' || attr.estado === 'cazando')) {
         if (attr.sexo === Gender.FEMALE) {
             const target = lands.find(l => (l.landAttributes?.resourceLevel || 0) > 0 && (attr.workMode !== 'collector' || l.landAttributes?.isGhost));
@@ -829,10 +844,8 @@ export const processBioBot = (entity: GameEntity, entities: GameEntity[], now: n
         }
     }
 
-    // --- CÁLCULO DE POSICIÓN OBJETIVO ---
     let targetPos: Vector2 = { x: entity.position.x, y: entity.position.y };
     
-    // REFUERZO DE AUTO-RECARGA: Si energía <= 15% (incluyendo 0%), dirigirse automáticamente al nodo de carga
     if (isLowEnergy && nearestLand && attr.estado !== 'alimentandose') {
         targetPos = nearestLand.position;
     } 
@@ -844,7 +857,6 @@ export const processBioBot = (entity: GameEntity, entities: GameEntity[], now: n
 
     const d = Math.sqrt(Math.pow(targetPos.x - entity.position.x, 2) + Math.pow(targetPos.y - entity.position.y, 2));
     if (d > 1) {
-        // En estado crítico (0%-15%), los Alfas mantienen velocidad constante para llegar al alimento
         const speed = baseSpeed * (attr.estado === 'cazando' ? 1.5 : attr.estado === 'recolectando' ? 1.3 : 1) * (attr.evolutionLevel > 1 ? 1.8 : 1);
         
         let moveX = ((targetPos.x - entity.position.x) / d);
@@ -958,6 +970,16 @@ export const updateWorldState = (entities: GameEntity[], speed: number, interact
 
         const updated = processAgent(agent, biobots, blocks, now);
         nextEntities.push(updated);
+
+        if (!destructionSet.has(updated.id) && updated.agentAttributes?.state === 'attacking' && updated.agentAttributes.targetId) {
+            const targetBot = biobots.find(b => b.id === updated.agentAttributes!.targetId);
+            if (targetBot && targetBot.attributes && targetBot.attributes.estado !== 'muerto') {
+                targetBot.attributes.estado = 'muerto';
+                targetBot.attributes.deathTimestamp = now;
+                targetBot.attributes.energia = 0;
+                targetBot.attributes.holdingCryptos = 0;
+            }
+        }
     });
 
     intruders.forEach(i => {

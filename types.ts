@@ -1,4 +1,3 @@
-
 export enum EntityType {
   PERSON = 'PERSON',
   LAND = 'LAND',
@@ -55,7 +54,7 @@ export interface AgentAttributes {
     lastShotTime?: number; 
     currentAttackStart?: number; 
     isDying?: boolean; 
-    deathTimestamp?: number; // Añadido para secuencia de destrucción
+    deathTimestamp?: number; 
 }
 
 export interface TornadoAttributes {

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { GameEntity, EntityType, BlockType } from '../types';
 import { Server, Wallet, Cpu, Shield, Lock, Box, Activity, Crosshair, Radar, ChevronUp, Wind, UserSquare } from 'lucide-react';
@@ -188,7 +187,7 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
       
       return (
           <div 
-              className="absolute z-50 pointer-events-none"
+              className="absolute z-30 pointer-events-none" 
               style={{ left: entity.position.x, top: entity.position.y }}
           >
               {isAttacking && targetPos && (
@@ -264,7 +263,7 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
       if (type === BlockType.FIREWALL) {
           return (
             <div 
-                className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10 cursor-move group"
+                className="absolute transform -translate-x-1/2 -translate-y-1/2 z-40 cursor-move group"
                 style={{ left: entity.position.x, top: entity.position.y, width: size, height: size }}
                 onMouseDown={(e) => onMouseDown && onMouseDown(e, entity)}
                 onTouchStart={(e) => onMouseDown && onMouseDown(e, entity)}
@@ -281,7 +280,7 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
       } else if (type === BlockType.ENCRYPTION) {
           return (
              <div 
-                className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10 cursor-move group"
+                className="absolute transform -translate-x-1/2 -translate-y-1/2 z-40 cursor-move group"
                 style={{ left: entity.position.x, top: entity.position.y, width: size, height: size }}
                 onMouseDown={(e) => onMouseDown && onMouseDown(e, entity)}
                 onTouchStart={(e) => onMouseDown && onMouseDown(e, entity)}
@@ -606,7 +605,7 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
       const cursorClass = isGhost ? 'cursor-not-allowed opacity-80' : 'cursor-move group-active:scale-105';
       return (
         <div 
-          className={`absolute transform -translate-x-1/2 -translate-y-1/2 z-0 group ${cursorClass}`}
+          className={`absolute transform -translate-x-1/2 -translate-y-1/2 z-10 group ${cursorClass}`}
           style={{ left: entity.position.x, top: entity.position.y }}
           onMouseDown={(e) => onMouseDown && onMouseDown(e, entity)}
           onTouchStart={(e) => onMouseDown && onMouseDown(e, entity)}

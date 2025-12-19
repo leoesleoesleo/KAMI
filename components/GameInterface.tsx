@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { PlayerState, GameEntity, Gender, INITIAL_POINTS, ACTION_COST, EntityType, BlockType } from '../types';
 import { Bot, Database, Zap, Pickaxe, X, MessageCircle, Send, User, Trophy, Activity, Clock, MapPin, ShoppingBag, CheckCircle, BarChart3, Battery, Skull, Fingerprint, Crosshair, Cpu, AlertTriangle, HardDrive, LogOut, RotateCcw, HeartPulse, ArrowRightLeft, Wallet, Hammer, Shield, Lock, Box, ChevronUp, Ghost, Pause, Play, Settings, Save, Swords, Share2, Link, Globe, Users, SquareDashedMousePointer, Dna, ShieldCheck, Microscope, ScanSearch, Flame } from 'lucide-react';
@@ -608,7 +607,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   }).length;
 
   return (
-    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 md:p-6 z-20 font-sans">
+    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between pt-14 p-4 md:p-6 z-20 font-sans">
       
       {/* INVISIBLE BACKDROP FOR CLOSING MENUS */}
       {activeMenu && (
@@ -786,7 +785,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 
       {/* Toast Notification for Kill */}
       {showKillToast && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-gray-900/90 text-alert-red px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto border border-alert-red w-max max-w-[90vw] whitespace-normal text-center">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-gray-900/90 text-alert-red px-4 py-2 md:px-6 md:py-3 rounded-lg shadow-2xl animate-bounce flex items-center gap-2 z-[60] pointer-events-auto border border-red-500 w-max max-w-[90vw] whitespace-normal text-center">
             <Skull size={18} className="shrink-0" />
             <span className="font-mono font-bold text-xs md:text-sm">TERMINACIÓN EJECUTADA</span>
         </div>
@@ -1397,7 +1396,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
                                                 title="Reactivar Unidad (-10 Energía)"
                                             >
                                                 <HeartPulse size={16} />
-                                                <span>REVIVIR</span>
+                                                <span>REINICIAR</span>
                                             </button>
                                         )}
                                     </div>
