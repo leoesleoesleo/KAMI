@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AVATAR_PRESETS, BACKGROUND_IMAGE, GAME_VERSION, DEDICATION_IMAGE_URL } from '../constants';
-import { Play, User, Cpu, RefreshCcw, Heart, X, Info, Code2, Cloud, Palette, Smartphone, Zap, BookOpen, Shield, Skull, Database, Wallet, TrendingUp, Binary, Eye, ThumbsUp, Activity } from 'lucide-react';
+import { Play, User, Cpu, RefreshCcw, Heart, X, Info, Code2, Cloud, Palette, Smartphone, Zap, BookOpen, Shield, Skull, Database, Wallet, TrendingUp, Binary, Eye, ThumbsUp, Activity, Share2, Globe, MessageCircle, Send, Link } from 'lucide-react';
 
 interface StartScreenProps {
   onStart: (name: string, avatar: string) => void;
@@ -17,6 +17,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
   const [showCredits, setShowCredits] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showLore, setShowLore] = useState(false);
+  const [isShareModalOpen, setShareModalOpen] = useState(false);
 
   // Social Stats State - Initialized to 0
   const [visitCount, setVisitCount] = useState(0);
@@ -49,6 +50,52 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
     setHasLiked(newState);
     setLikeCount(prev => newState ? prev + 1 : prev - 1);
     localStorage.setItem('biobots_liked', newState.toString());
+  };
+
+  const handleShareGame = async () => {
+      const shareData = {
+          title: 'BioBots: Génesis Evolutiva',
+          text: '¡Únete a la simulación! Gestiona BioBots, mina Criptomonedas y evoluciona en este universo digital. 🤖⚡',
+          url: window.location.href
+      };
+
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+          try {
+              await navigator.share(shareData);
+          } catch (err) {
+              setShareModalOpen(true);
+          }
+      } else {
+          setShareModalOpen(true);
+      }
+  };
+
+  const handleManualShare = (platform: 'whatsapp' | 'facebook' | 'twitter' | 'copy') => {
+      const url = window.location.href;
+      const text = '¡Únete a la simulación! Gestiona BioBots, mina Criptomonedas y evoluciona en este universo digital. 🤖⚡';
+      
+      let shareUrl = '';
+
+      switch (platform) {
+          case 'whatsapp':
+              shareUrl = `https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`;
+              break;
+          case 'facebook':
+              shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+              break;
+          case 'twitter':
+              shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+              break;
+          case 'copy':
+              navigator.clipboard.writeText(`${text}\n${url}`);
+              alert("¡Enlace copiado al portapapeles!");
+              break;
+      }
+
+      if (platform !== 'copy') {
+          window.open(shareUrl, '_blank');
+      }
+      setShareModalOpen(false);
   };
 
   return (
@@ -98,22 +145,20 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
       </div>
 
       {/* MAIN CONTAINER: Split Screen Layout */}
-      {/* md:flex-row-reverse allows "Right" column (Image) to be 2nd in DOM but appear on Right, 
-          while maintaining Image on TOP on mobile (flex-col) */}
-      <div className="relative z-10 w-full max-w-7xl p-4 md:p-8 flex flex-col md:flex-row-reverse items-center justify-center h-full overflow-y-auto scrollbar-hide gap-8 md:gap-16">
+      <div className="relative z-10 w-full max-w-7xl p-4 md:p-8 flex flex-col md:flex-row-reverse items-center justify-center h-full overflow-y-auto overflow-x-hidden scrollbar-hide gap-4 md:gap-16 pt-24 md:pt-8">
         
         {/* --- RIGHT PANEL (Visual / Hero Image) --- */}
-        <div className="w-full md:w-1/2 flex flex-col items-center justify-center shrink-0 animate-fade-in-down mt-12 md:mt-0">
+        <div className="w-full md:w-1/2 flex flex-col items-center justify-center shrink-0 animate-fade-in-down mb-4 md:mb-0">
             {/* Main Brand Image Container */}
-            <div className="relative group perspective-1000 mb-2">
+            <div className="relative group perspective-1000 flex justify-center w-full">
                 {/* Back Glow Effect */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-tech-cyan/20 blur-[60px] rounded-full opacity-60 group-hover:opacity-80 transition-opacity duration-700 animate-pulse-slow" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] md:w-[120%] h-[90%] md:h-[120%] bg-tech-cyan/20 blur-[40px] md:blur-[60px] rounded-full opacity-60 group-hover:opacity-80 transition-opacity duration-700 animate-pulse-slow" />
                 
-                {/* The Logo Image */}
+                {/* The Logo Image - Optimized responsiveness */}
                 <img 
                     src={BRAND_LOGO_URL} 
                     alt="BioBots: Génesis Evolutiva" 
-                    className="relative z-10 w-full max-w-[280px] sm:max-w-[450px] md:max-w-[600px] lg:max-w-[700px] h-auto object-contain drop-shadow-[0_0_30px_rgba(6,182,212,0.4)] transform transition-transform duration-700 group-hover:scale-105 group-hover:-rotate-1 animate-float"
+                    className="relative z-10 w-[85%] sm:w-[70%] md:w-full max-w-[320px] sm:max-w-[450px] md:max-w-[600px] lg:max-w-[700px] h-auto max-h-[25vh] md:max-h-none object-contain drop-shadow-[0_0_20px_rgba(6,182,212,0.4)] transform transition-transform duration-700 group-hover:scale-105 animate-float"
                 />
 
                 {/* Cyberpunk Decor Lines (Desktop Only) */}
@@ -123,7 +168,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
         </div>
 
         {/* --- LEFT PANEL (Form & Controls) --- */}
-        <div className="w-full md:w-1/2 flex flex-col gap-6 max-w-xl animate-fade-in-up pb-8 md:pb-0">
+        <div className="w-full md:w-1/2 flex flex-col gap-6 max-w-xl animate-fade-in-up pb-12 md:pb-0">
             
             {/* Glass Panel: Consolidated Form & Avatar Selection */}
             <div className="backdrop-blur-xl bg-slate-900/70 rounded-3xl border border-tech-cyan/20 shadow-[0_0_50px_rgba(6,182,212,0.1)] p-6 md:p-8 flex flex-col gap-6 relative overflow-hidden">
@@ -133,14 +178,14 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                 {/* Version & Status Header */}
                 <div className="flex items-center gap-3 opacity-90 pb-4 border-b border-white/10">
                     <div className="h-[1px] w-8 bg-gradient-to-r from-transparent to-neon-green" />
-                    <h2 className="text-xs font-mono text-neon-green tracking-[0.2em] uppercase flex items-center gap-2">
+                    <h2 className="text-[10px] md:text-xs font-mono text-neon-green tracking-[0.2em] uppercase flex items-center gap-2">
                        <Cpu size={12} className="animate-spin-slow"/> v.{GAME_VERSION} • SIMULACIÓN ACTIVA
                     </h2>
                 </div>
 
                 {/* Description */}
-                <p className="text-gray-300 font-mono text-xs md:text-sm leading-relaxed border-l-2 border-tech-cyan/50 pl-4">
-                    Tu misión es construir, optimizar y expandir un ecosistema de BioBots capaces de evolucionar, minar recursos, aprender y adaptarse en un mundo gobernado por datos.
+                <p className="text-gray-300 font-mono text-[10px] md:text-sm leading-relaxed border-l-2 border-tech-cyan/50 pl-4">
+                    Tu misión es construir, optimizar y expandir un ecosistema de BioBots capaces de evolucionar, minar recursos y adaptarse.
                 </p>
 
                 {/* CONTINUE BUTTON */}
@@ -162,28 +207,38 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                         placeholder="Identificador de Arquitecto"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="w-full bg-black/40 border border-tech-cyan/30 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-tech-cyan focus:shadow-[0_0_15px_rgba(6,182,212,0.3)] transition-all font-mono"
+                        className="w-full bg-black/40 border border-tech-cyan/30 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-tech-cyan focus:shadow-[0_0_15px_rgba(6,182,212,0.3)] transition-all font-mono text-sm md:text-base"
                     />
                 </div>
 
                 {/* AVATAR SELECTION COMPACT */}
                 <div className="space-y-3 bg-black/20 p-4 rounded-2xl border border-white/5">
                     <div className="flex items-center justify-between">
-                        <h3 className="font-tech text-sm text-tech-purple flex items-center gap-2">
+                        <h3 className="font-tech text-[10px] md:text-sm text-tech-purple flex items-center gap-2">
                             <Cpu size={14}/> Selección de Avatar
                         </h3>
-                        <div className="text-xs text-neon-green font-mono tracking-wider">{name ? name.toUpperCase() : "NO_DATA"}</div>
+                        <div className="text-[10px] text-neon-green font-mono tracking-wider">{name ? name.toUpperCase() : "NO_DATA"}</div>
                     </div>
                     
                     <div className="flex gap-4 items-center">
-                         {/* Large Preview */}
-                         <div className="relative w-16 h-16 md:w-20 md:h-20 shrink-0">
-                             <div className="absolute inset-0 bg-tech-cyan/20 rounded-full animate-pulse" />
-                             <img src={selectedAvatar} alt="Selected" className="w-full h-full rounded-full object-cover border-2 border-tech-cyan shadow-[0_0_15px_rgba(6,182,212,0.5)] bg-black/50" />
+                         {/* Large Preview & Share Action */}
+                         <div className="relative shrink-0 flex flex-col items-center gap-2">
+                             <div className="relative w-12 h-12 md:w-20 md:h-20">
+                                 <div className="absolute inset-0 bg-tech-cyan/20 rounded-full animate-pulse" />
+                                 <img src={selectedAvatar} alt="Selected" className="w-full h-full rounded-full object-cover border-2 border-tech-cyan shadow-[0_0_15px_rgba(6,182,212,0.5)] bg-black/50" />
+                             </div>
+                             <button 
+                                onClick={handleShareGame}
+                                className="flex items-center gap-1 px-2 py-1 rounded bg-tech-cyan/10 border border-tech-cyan/30 hover:bg-tech-cyan/20 transition-all group"
+                                title="Compartir Perfil"
+                             >
+                                <Share2 size={12} className="text-tech-cyan group-hover:scale-110" />
+                                <span className="text-[8px] font-mono font-bold text-tech-cyan">INVITAR</span>
+                             </button>
                          </div>
                          
                          {/* Grid */}
-                         <div className="flex-1 grid grid-cols-5 gap-2">
+                         <div className="flex-1 grid grid-cols-5 gap-1 md:gap-2">
                             {AVATAR_PRESETS.map((avatar, idx) => (
                                 <button
                                     key={idx}
@@ -214,12 +269,12 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                  {/* Visit Counter */}
                 <div className="bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-xl p-3 flex items-center justify-between hover:bg-slate-800/60 transition-colors group cursor-default">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
+                        <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
                             <Eye size={18} />
                         </div>
                         <div>
-                            <p className="text-[9px] text-gray-500 font-mono font-bold uppercase tracking-wider">Accesos</p>
-                            <p className="text-lg font-tech font-bold text-white group-hover:text-blue-200 transition-colors">
+                            <p className="text-[8px] md:text-[9px] text-gray-500 font-mono font-bold uppercase tracking-wider">Accesos</p>
+                            <p className="text-sm md:text-lg font-tech font-bold text-white group-hover:text-blue-200 transition-colors">
                                 {visitCount.toLocaleString()}
                             </p>
                         </div>
@@ -233,12 +288,12 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                     className={`bg-slate-900/40 backdrop-blur-md border rounded-xl p-3 flex items-center justify-between transition-all group ${hasLiked ? 'border-neon-green/50 bg-neon-green/5 shadow-[0_0_15px_rgba(34,197,94,0.1)]' : 'border-white/10 hover:bg-slate-800/60'}`}
                 >
                     <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all group-hover:scale-110 ${hasLiked ? 'bg-neon-green/20 text-neon-green' : 'bg-pink-500/10 text-pink-500'}`}>
+                        <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center transition-all group-hover:scale-110 ${hasLiked ? 'bg-neon-green/20 text-neon-green' : 'bg-pink-500/10 text-pink-500'}`}>
                             <ThumbsUp size={18} className={hasLiked ? 'fill-current' : ''} />
                         </div>
                         <div className="text-left">
-                            <p className="text-[9px] text-gray-500 font-mono font-bold uppercase tracking-wider">Aprobación</p>
-                            <p className={`text-lg font-tech font-bold transition-colors ${hasLiked ? 'text-neon-green' : 'text-white'}`}>
+                            <p className="text-[8px] md:text-[9px] text-gray-500 font-mono font-bold uppercase tracking-wider">Aprobación</p>
+                            <p className={`text-sm md:text-lg font-tech font-bold transition-colors ${hasLiked ? 'text-neon-green' : 'text-white'}`}>
                                 {likeCount.toLocaleString()}
                             </p>
                         </div>
@@ -249,6 +304,57 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
         </div>
 
       </div>
+
+      {/* --- SHARE MODAL (Fallback) --- */}
+      {isShareModalOpen && (
+          <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/90 backdrop-blur-md pointer-events-auto p-4 animate-fade-in">
+              <div className="bg-slate-900 rounded-xl p-6 w-full max-w-sm shadow-[0_0_50px_rgba(6,182,212,0.3)] border border-tech-cyan/50 relative animate-pop-in">
+                  <button onClick={() => setShareModalOpen(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
+                      <X size={20} />
+                  </button>
+                  
+                  <div className="flex flex-col items-center mb-6">
+                      <Share2 size={32} className="text-tech-cyan mb-2 animate-pulse" />
+                      <h3 className="font-tech text-xl font-bold text-white tracking-widest uppercase">COMPARTIR SISTEMA</h3>
+                      <p className="text-xs text-gray-400 text-center mt-1">Invita a otros Arquitectos a unirse a la simulación evolutiva.</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                      <button 
+                        onClick={() => handleManualShare('whatsapp')}
+                        className="flex flex-col items-center gap-2 p-4 bg-green-900/20 border border-green-700 rounded-lg hover:bg-green-800/30 transition-all hover:scale-105"
+                      >
+                          <MessageCircle size={24} className="text-green-400" />
+                          <span className="text-sm font-bold text-green-100">WhatsApp</span>
+                      </button>
+
+                      <button 
+                        onClick={() => handleManualShare('facebook')}
+                        className="flex flex-col items-center gap-2 p-4 bg-blue-900/20 border border-blue-700 rounded-lg hover:bg-blue-800/30 transition-all hover:scale-105"
+                      >
+                          <Globe size={24} className="text-blue-400" />
+                          <span className="text-sm font-bold text-blue-100">Facebook</span>
+                      </button>
+
+                      <button 
+                        onClick={() => handleManualShare('twitter')}
+                        className="flex flex-col items-center gap-2 p-4 bg-sky-900/20 border border-sky-700 rounded-lg hover:bg-sky-800/30 transition-all hover:scale-105"
+                      >
+                          <Send size={24} className="text-sky-400" />
+                          <span className="text-sm font-bold text-sky-100">Twitter / X</span>
+                      </button>
+
+                      <button 
+                        onClick={() => handleManualShare('copy')}
+                        className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-600 rounded-lg hover:bg-gray-700 transition-all hover:scale-105"
+                      >
+                          <Link size={24} className="text-gray-300" />
+                          <span className="text-sm font-bold text-gray-200">Copiar Link</span>
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
 
       {/* --- CREDITS & DEDICATION MODAL --- */}
       {showCredits && (
@@ -264,7 +370,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                   </button>
 
                   {/* LEFT: Text Content */}
-                  <div className="flex-1 p-8 md:p-12 flex flex-col justify-center relative overflow-hidden">
+                  <div className="flex-1 p-8 md:p-12 flex flex-col justify-center relative overflow-hidden overflow-y-auto">
                       {/* Decorative Background Elements */}
                       <div className="absolute top-0 left-0 w-32 h-32 border-t-2 border-l-2 border-tech-cyan/20 rounded-tl-3xl" />
                       <div className="absolute bottom-0 right-0 w-32 h-32 border-b-2 border-r-2 border-tech-purple/20 rounded-br-3xl" />
@@ -275,13 +381,13 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                               <span className="font-mono tracking-widest uppercase font-bold">Dedicatoria</span>
                           </div>
 
-                          <h2 className="text-4xl md:text-5xl font-tech font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 leading-tight">
+                          <h2 className="text-3xl md:text-5xl font-tech font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 leading-tight">
                               Para Santiago
                           </h2>
 
                           <div className="w-16 h-1 bg-gradient-to-r from-tech-cyan to-tech-purple" />
 
-                          <p className="font-sans text-lg md:text-xl text-gray-300 leading-relaxed font-light italic opacity-90">
+                          <p className="font-sans text-base md:text-xl text-gray-300 leading-relaxed font-light italic opacity-90">
                               "Este juego fue creado por <strong className="text-white font-semibold">Leonardo Patiño Rodríguez</strong> en el año 2025 para su hijo <strong className="text-tech-cyan font-semibold">Santiago Patiño David</strong>, de 8 años, a quien quiere profundamente. Esta obra está dedicada a su curiosidad, imaginación y sueños."
                           </p>
 
@@ -314,14 +420,14 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                   {/* Header */}
                   <div className="p-6 border-b border-white/10 flex justify-between items-center bg-slate-900/50">
                       <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl bg-yellow-500/10 border border-yellow-500/50 flex items-center justify-center text-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.2)]">
-                              <BookOpen size={28} />
+                          <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-yellow-500/10 border border-yellow-500/50 flex items-center justify-center text-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.2)]">
+                              <BookOpen size={24} />
                           </div>
                           <div>
-                              <h2 className="font-tech text-3xl font-bold text-white tracking-wide">Historia del Mundo</h2>
-                              <p className="text-xs text-yellow-500 font-mono uppercase tracking-[0.2em] flex items-center gap-2">
+                              <h2 className="font-tech text-xl md:text-3xl font-bold text-white tracking-wide">Historia</h2>
+                              <p className="text-[10px] text-yellow-500 font-mono uppercase tracking-[0.2em] flex items-center gap-2">
                                   <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"/>
-                                  Archivos del Arquitecto
+                                  Archivos
                               </p>
                           </div>
                       </div>
@@ -341,8 +447,8 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                               </div>
                               <div className="h-full w-px bg-gradient-to-b from-tech-cyan/30 to-transparent" />
                           </div>
-                          <p className="text-base md:text-lg">
-                              En un mundo físico donde la tecnología parece tener alma, el <strong className="text-white">Arquitecto</strong> despierta sobre un gran lienzo vivo que responde a su imaginación. Allí descubre su propósito: crear <strong className="text-tech-cyan">biobots</strong>, seres metálicos con luces que laten como si tuvieran emociones 🤖✨. Su primera creación lo observa con brillo curioso, transmitiendo una mezcla de confianza y expectativa.
+                          <p className="text-sm md:text-lg">
+                              En un mundo físico donde la tecnología parece tener alma, el <strong className="text-white">Arquitecto</strong> despierta sobre un gran lienzo vivo que responde a su imaginación. Allí descubre su propósito: crear <strong className="text-tech-cyan">biobots</strong>, seres metálicos con luces que laten como si tuvieran emociones 🤖✨.
                           </p>
                       </div>
 
@@ -354,73 +460,10 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                               </div>
                               <div className="h-full w-px bg-gradient-to-b from-neon-green/30 to-transparent" />
                           </div>
-                          <p className="text-base md:text-lg">
-                              Para dar vida a este pequeño ecosistema, el Arquitecto construye <strong className="text-neon-green">granjas de servidores</strong> que generan energía 🌱. A medida que estas se cargan, cambian de amarillo a rosa y finalmente a verde, señalando su potencia máxima. Los biobots dependen de ellas no solo para vivir, sino para <strong className="text-white">minar criptomonedas</strong> durante sus recorridos, convirtiendo cada paso en valor.
+                          <p className="text-sm md:text-lg">
+                              Para dar vida a este pequeño ecosistema, el Arquitecto construye <strong className="text-neon-green">granjas de servidores</strong> que generan energía 🌱. A medida que estas se cargan, cambian de amarillo a rosa y finalmente a verde, señalando su potencia máxima. Los biobots dependen de ellas para vivir y <strong className="text-white">minar criptomonedas</strong>.
                           </p>
                       </div>
-
-                      {/* Segment 3 & 4: Balance & Death */}
-                      <div className="flex gap-6 items-start group">
-                          <div className="hidden md:flex flex-col items-center gap-2 mt-1">
-                              <div className="p-2 rounded-lg bg-pink-500/10 text-pink-500 border border-pink-500/30 group-hover:scale-110 transition-transform">
-                                  <Skull size={20} />
-                              </div>
-                              <div className="h-full w-px bg-gradient-to-b from-pink-500/30 to-transparent" />
-                          </div>
-                          <div className="space-y-4">
-                              <p className="text-base md:text-lg">
-                                  El Arquitecto aprende que colocar las granjas más lejos produce rutas de minería más largas y rentables. Sin embargo, esta estrategia también consume más <strong className="text-pink-400">vitalidad</strong> de los biobots, que pueden debilitarse o incluso morir si no alcanzan la energía a tiempo ⚡. Mantener este equilibrio se convierte en un desafío esencial cargado de responsabilidad emocional.
-                              </p>
-                              <p className="text-base md:text-lg border-l-4 border-pink-900/50 pl-4 italic bg-pink-900/10 p-3 rounded-r-lg">
-                                  Cuando un biobot pasa diez minutos inactivo, su luz se apaga y entra en congelamiento 💀. Verlos inmóviles genera un sentimiento de pérdida, aunque existe una ventana de cinco minutos en la que pueden ser revividos usando energía adicional. Este rescate se convierte en un <strong className="text-white">acto casi afectivo</strong> entre creador y criatura.
-                              </p>
-                          </div>
-                      </div>
-
-                      {/* Segment 5 & 6: Wallet & Defense */}
-                      <div className="flex gap-6 items-start group">
-                          <div className="hidden md:flex flex-col items-center gap-2 mt-1">
-                              <div className="p-2 rounded-lg bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 group-hover:scale-110 transition-transform">
-                                  <Shield size={20} />
-                              </div>
-                              <div className="h-full w-px bg-gradient-to-b from-yellow-500/30 to-transparent" />
-                          </div>
-                          <p className="text-base md:text-lg">
-                              A medida que el mundo cobra vida, surge un nuevo elemento: la <strong className="text-tech-purple">billetera de activos</strong>, un contenedor digital donde se almacenan las criptomonedas minadas <Wallet size={16} className="inline text-tech-purple" />. Su brillo atrae la atención de misteriosas sombras conocidas como piratas, fuerzas aún indefinidas que buscan aprovecharse de los recursos del Arquitecto.
-                              <br/><br/>
-                              Para defenderse, el Arquitecto introduce <strong className="text-gray-200">cubos de protección</strong> 🛡️: algunos de madera, simples pero funcionales, y otros plateados, más resistentes y elegantes. Cada cubo colocado se siente como una promesa de seguridad, una barrera entre la armonía del mundo y las amenazas externas.
-                          </p>
-                      </div>
-
-                      {/* Segment 7, 8 & 9: Growth & Ascension */}
-                      <div className="flex gap-6 items-start group">
-                          <div className="hidden md:flex flex-col items-center gap-2 mt-1">
-                              <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/30 group-hover:scale-110 transition-transform">
-                                  <TrendingUp size={20} />
-                              </div>
-                              <div className="h-full w-px bg-gradient-to-b from-blue-500/30 to-transparent" />
-                          </div>
-                          <p className="text-base md:text-lg">
-                              Con el tiempo, el Arquitecto perfecciona su dominio del entorno. Mueve granjas, biobots y cubos en tiempo real, influyendo directamente en la historia que se escribe a su alrededor. El mundo responde a cada acción, creciendo y adaptándose como si fuera un <strong className="text-tech-cyan">organismo metálico</strong>.
-                              <br/><br/>
-                              Los biobots, inicialmente herramientas, se convierten en pequeños compañeros llenos de significado. Sus recorridos narran pequeñas historias de esfuerzo, riesgo y retorno. A medida que gana energía y criptomonedas, el Arquitecto <strong className="text-yellow-400">asciende por niveles</strong> que desbloquean nuevos desafíos, paisajes y posibilidades 🚀.
-                          </p>
-                      </div>
-
-                      {/* Closing */}
-                      <div className="bg-gradient-to-r from-slate-800 to-transparent p-6 rounded-xl border border-white/5 mt-4">
-                          <p className="text-lg md:text-xl font-light text-center text-gray-200">
-                              Así, entre creación, amenaza, emoción y estrategia, el Arquitecto continúa escribiendo la vida de este mundo. Con cada bot salvado, cada granja encendida y cada enemigo repelido, construye un universo donde <span className="text-yellow-200">la luz</span>, <span className="text-gray-400">el metal</span> y sus <span className="text-tech-cyan">decisiones</span> forman una historia única y viva.
-                          </p>
-                      </div>
-
-                  </div>
-                  
-                  {/* Footer */}
-                  <div className="p-4 bg-slate-950 border-t border-white/10 text-center">
-                      <span className="text-[10px] text-gray-600 font-mono uppercase tracking-widest flex items-center justify-center gap-2">
-                          <BookOpen size={12}/> KAMI LORE ARCHIVES • ENCRYPTED
-                      </span>
                   </div>
               </div>
           </div>
@@ -438,8 +481,8 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                               <Code2 size={24} />
                           </div>
                           <div>
-                              <h2 className="font-tech text-2xl font-bold text-white tracking-wide">Arquitectura del Sistema</h2>
-                              <p className="text-xs text-gray-400 font-mono uppercase tracking-widest">Stack Tecnológico v2.0</p>
+                              <h2 className="font-tech text-xl md:text-2xl font-bold text-white tracking-wide">Arquitectura</h2>
+                              <p className="text-[10px] text-gray-400 font-mono uppercase tracking-widest">Stack Tecnológico</p>
                           </div>
                       </div>
                       <button onClick={() => setShowAbout(false)} className="text-gray-500 hover:text-white p-2 bg-black/30 rounded-full">
@@ -449,90 +492,24 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
 
                   {/* Body Content */}
                   <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 font-sans">
-                      
-                      {/* Overview */}
                       <div className="bg-gradient-to-r from-slate-800/50 to-transparent p-4 rounded-xl border-l-4 border-tech-cyan">
                           <p className="text-gray-300 leading-relaxed text-sm md:text-base">
-                              <strong className="text-white">BioBots</strong> está desarrollado como una <strong className="text-tech-cyan">Progressive Web App (PWA)</strong> utilizando un stack moderno: 
-                              React + TypeScript + Vite, y desplegado en un entorno Serverless sobre la infraestructura de Google Cloud.
+                              <strong className="text-white">BioBots</strong> está desarrollado como una <strong className="text-tech-cyan">Progressive Web App (PWA)</strong> utilizando React + TypeScript + Vite.
                           </p>
                       </div>
 
-                      {/* Tech Grid */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           {/* Core */}
                           <div className="bg-black/30 p-4 rounded-xl border border-white/5 space-y-3 hover:border-tech-cyan/30 transition-colors group">
                               <div className="flex items-center gap-2 text-tech-cyan font-bold font-mono text-sm uppercase mb-2">
-                                  <Zap size={16} /> Core / Motor
+                                  <Zap size={16} /> Core
                               </div>
-                              <ul className="space-y-2 text-sm text-gray-400">
-                                  <li className="flex items-start gap-2">
-                                      <span className="text-white font-semibold">React 18:</span> Biblioteca UI modular y reactiva.
-                                  </li>
-                                  <li className="flex items-start gap-2">
-                                      <span className="text-white font-semibold">TypeScript:</span> Tipado estático para robustez (90% menos bugs).
-                                  </li>
-                                  <li className="flex items-start gap-2">
-                                      <span className="text-white font-semibold">Vite:</span> Empaquetador de nueva generación.
-                                  </li>
-                              </ul>
-                          </div>
-
-                          {/* UI */}
-                          <div className="bg-black/30 p-4 rounded-xl border border-white/5 space-y-3 hover:border-tech-purple/30 transition-colors group">
-                              <div className="flex items-center gap-2 text-tech-purple font-bold font-mono text-sm uppercase mb-2">
-                                  <Palette size={16} /> Diseño & UI
-                              </div>
-                              <ul className="space-y-2 text-sm text-gray-400">
-                                  <li className="flex items-start gap-2">
-                                      <span className="text-white font-semibold">Tailwind CSS:</span> Estilos modernos y ultraligeros.
-                                  </li>
-                                  <li className="flex items-start gap-2">
-                                      <span className="text-white font-semibold">Lucide React:</span> Iconografía vectorial optimizada.
-                                  </li>
-                                  <li className="flex items-start gap-2">
-                                      <span className="text-white font-semibold">Glassmorphism:</span> Estética futurista responsiva.
-                                  </li>
-                              </ul>
-                          </div>
-
-                          {/* Cloud */}
-                          <div className="bg-black/30 p-4 rounded-xl border border-white/5 space-y-3 hover:border-neon-green/30 transition-colors group">
-                              <div className="flex items-center gap-2 text-neon-green font-bold font-mono text-sm uppercase mb-2">
-                                  <Cloud size={16} /> Cloud Infra
-                              </div>
-                              <ul className="space-y-2 text-sm text-gray-400">
-                                  <li className="flex items-start gap-2">
-                                      <span className="text-white font-semibold">Firebase:</span> Hosting global CDN de baja latencia.
-                                  </li>
-                                  <li className="flex items-start gap-2">
-                                      <span className="text-white font-semibold">PWA:</span> Instalable en Android/iOS/PC.
-                                  </li>
-                                  <li className="flex items-start gap-2">
-                                      <span className="text-white font-semibold">Offline:</span> Service Workers con precaching inteligente.
-                                  </li>
+                              <ul className="space-y-2 text-xs md:text-sm text-gray-400">
+                                  <li className="flex items-start gap-2">React 18</li>
+                                  <li className="flex items-start gap-2">TypeScript</li>
                               </ul>
                           </div>
                       </div>
-
-                      {/* Closing Statement */}
-                      <div className="flex gap-4 items-start bg-slate-950 p-5 rounded-xl border border-gray-800">
-                          <Smartphone className="shrink-0 text-white mt-1" size={24} />
-                          <div>
-                              <h4 className="text-white font-bold font-tech mb-2">Rendimiento Nativo</h4>
-                              <p className="text-gray-400 text-sm leading-relaxed">
-                                  Este no es solo un juego web; es una aplicación de alto rendimiento diseñada para ser instalable, rápida, estable y lista para escalar. 
-                                  Está construida con la misma tecnología base utilizada por empresas como <span className="text-white">Facebook, Airbnb y Netflix</span>, garantizando calidad y crecimiento sostenible.
-                              </p>
-                          </div>
-                      </div>
-                  </div>
-                  
-                  {/* Footer */}
-                  <div className="p-4 bg-slate-950 border-t border-white/10 text-center">
-                      <span className="text-[10px] text-gray-600 font-mono uppercase tracking-widest">
-                          SYSTEM ARCHITECTURE DOCUMENTATION • {new Date().getFullYear()}
-                      </span>
                   </div>
               </div>
           </div>

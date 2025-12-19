@@ -1,5 +1,21 @@
 
-
+import { 
+  createPersonEntity, 
+  createLandEntity, 
+  createWalletEntity, 
+  createBlockEntity, 
+  createGhostNode, 
+  ensureOutsideWallet, 
+  createIntruderEntity, 
+  updateWorldState, 
+  generateLevel1Layout, 
+  createTornadoEntity, 
+  createBlackHoleEntity, 
+  createExplosionEntity, 
+  createAgentEntity, 
+  createPersonJSON,
+  findSafeSpawnPosition
+} from './services/gameService';
 import React, { useState, useEffect, useRef } from 'react';
 import { StartScreen } from './components/StartScreen';
 import { WorldCanvas } from './components/WorldCanvas';
@@ -8,12 +24,11 @@ import { MusicPlayer } from './components/MusicPlayer';
 import { InstallPWA } from './components/InstallPWA';
 import { LoadingScreen } from './components/LoadingScreen';
 import { useGameLoop } from './hooks/useGameLoop';
-import { createPersonEntity, createLandEntity, createWalletEntity, createBlockEntity, createGhostNode, ensureOutsideWallet, createIntruderEntity, updateWorldState, generateLevel1Layout, createTornadoEntity, createBlackHoleEntity, createExplosionEntity, createAgentEntity } from './services/gameService';
 import { RuntimeTestRunner } from './services/RuntimeTestRunner';
 import { StorageService } from './services/storageService';
 import { AudioManager } from './services/AudioManager'; 
-import { GameState, GameEntity, INITIAL_POINTS, EntityAttributes, EntityType, BlockType, ACTION_COST, Vector2 } from './types';
-import { WATER_SOUND_URL, AUTOSAVE_INTERVAL_MS } from './constants';
+import { GameState, GameEntity, INITIAL_POINTS, EntityAttributes, EntityType, BlockType, ACTION_COST, Vector2, Gender } from './types';
+import { WATER_SOUND_URL, AUTOSAVE_INTERVAL_MS, WORLD_SIZE } from './constants';
 import { GAME_CONFIG } from './gameConfig';
 
 function App() {
@@ -473,6 +488,17 @@ function App() {
     setIsPlaying(true);
     // NEW: Use Level 1 Generator instead of just a single wallet
     const initialEntities = generateLevel1Layout();
+    const center = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
+
+    // AUTOMATIC INITIAL BOTS: One Alfa and one Beta
+    // Find safe positions outside of blocks for them
+    const alfaPos = findSafeSpawnPosition(initialEntities, { x: center.x - 400, y: center.y - 400 }, 200);
+    const betaPos = findSafeSpawnPosition(initialEntities, { x: center.x + 400, y: center.y + 400 }, 200);
+
+    const alfaBot = createPersonEntity(createPersonJSON(Gender.MALE), alfaPos);
+    const betaBot = createPersonEntity(createPersonJSON(Gender.FEMALE), betaPos);
+
+    initialEntities.push(alfaBot, betaBot);
     
     setGameState(prev => ({
       ...prev,
@@ -486,7 +512,12 @@ function App() {
           name, 
           avatarUrl: avatar, 
           points: INITIAL_POINTS,
-          stats: { entitiesCreated: 0, manaSpent: 0, landsCreated: 0, cryptoSpent: 0 }
+          stats: { 
+            entitiesCreated: 2, 
+            manaSpent: 0, 
+            landsCreated: initialEntities.filter(e => e.type === EntityType.LAND).length, 
+            cryptoSpent: 0 
+          }
       }
     }));
     
@@ -549,6 +580,16 @@ function App() {
   const handleRestartGame = () => {
       // NEW: Use Level 1 Generator for Restart as well
       const initialEntities = generateLevel1Layout();
+      const center = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
+
+      // RE-CREATE INITIAL BOTS ON RESTART with safe positioning
+      const alfaPos = findSafeSpawnPosition(initialEntities, { x: center.x - 400, y: center.y - 400 }, 200);
+      const betaPos = findSafeSpawnPosition(initialEntities, { x: center.x + 400, y: center.y + 400 }, 200);
+
+      const alfaBot = createPersonEntity(createPersonJSON(Gender.MALE), alfaPos);
+      const betaBot = createPersonEntity(createPersonJSON(Gender.FEMALE), betaPos);
+      initialEntities.push(alfaBot, betaBot);
+
       AudioManager.playLevel(1, true);
 
       setGameState(prev => ({
@@ -562,9 +603,9 @@ function App() {
           ...prev.player,
           points: INITIAL_POINTS,
           stats: {
-            entitiesCreated: 0,
+            entitiesCreated: 2,
             manaSpent: 0,
-            landsCreated: 0,
+            landsCreated: initialEntities.filter(e => e.type === EntityType.LAND).length,
             cryptoSpent: 0
           }
         }

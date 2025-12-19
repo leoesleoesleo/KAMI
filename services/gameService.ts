@@ -70,6 +70,31 @@ export const ensureOutsideWallet = (position: Vector2): Vector2 => {
     return position;
 };
 
+export const findSafeSpawnPosition = (entities: GameEntity[], preferredPosition: Vector2, minDistance: number = 150): Vector2 => {
+    let currentPos = { ...preferredPosition };
+    const blocks = entities.filter(e => e.type === EntityType.BLOCK);
+    
+    let attempts = 0;
+    const maxAttempts = 100;
+    
+    while (attempts < maxAttempts) {
+        const collision = blocks.find(b => {
+            const dx = b.position.x - currentPos.x;
+            const dy = b.position.y - currentPos.y;
+            return Math.sqrt(dx * dx + dy * dy) < minDistance;
+        });
+        
+        if (!collision) return currentPos;
+        
+        // Move outwards in spiral/random fashion
+        const angle = Math.random() * Math.PI * 2;
+        currentPos.x += Math.cos(angle) * 60;
+        currentPos.y += Math.sin(angle) * 60;
+        attempts++;
+    }
+    return currentPos;
+};
+
 export const generateRandomEdgePosition = (): Vector2 => {
     const side = Math.floor(Math.random() * 4); 
     const padding = 20;

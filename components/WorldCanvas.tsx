@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { GameEntity, Vector2, EntityType } from '../types';
 import { WORLD_SIZE } from '../constants';
 import { EntityNode } from './EntityNode';
@@ -45,8 +45,18 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
     isSelectionMode = false
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
-  const [offset, setOffset] = useState<Vector2>({ x: -WORLD_SIZE / 2 + window.innerWidth / 2, y: -WORLD_SIZE / 2 + window.innerHeight / 2 });
+  
+  // Adaptive initial scale based on device width
+  const isMobile = window.innerWidth < 768;
+  const initialScale = isMobile ? 0.45 : 0.8;
+  
+  const [scale, setScale] = useState(initialScale);
+  
+  // Initial offset calculation to center the WORLD_SIZE at the middle of the viewport
+  const initialOffsetX = window.innerWidth / 2 - (WORLD_SIZE / 2) * initialScale;
+  const initialOffsetY = window.innerHeight / 2 - (WORLD_SIZE / 2) * initialScale;
+  
+  const [offset, setOffset] = useState<Vector2>({ x: initialOffsetX, y: initialOffsetY });
   
   // Interaction State
   const [isPanning, setIsPanning] = useState(false);
@@ -60,6 +70,18 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
 
   const hasDraggedRef = useRef(false);
   const hasPannedRef = useRef(false); // Track if actual panning occurred
+
+  // Center camera on mount
+  useEffect(() => {
+    if (containerRef.current) {
+        const vw = containerRef.current.clientWidth;
+        const vh = containerRef.current.clientHeight;
+        setOffset({
+            x: vw / 2 - (WORLD_SIZE / 2) * scale,
+            y: vh / 2 - (WORLD_SIZE / 2) * scale
+        });
+    }
+  }, []);
 
   // Helper to get coordinates from either Mouse or Touch event
   const getEventPos = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
@@ -100,16 +122,16 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
     e.stopPropagation();
     // Ultra-smooth zoom sensitivity for precise control
     const zoomSensitivity = 0.0005; 
-    const targetScale = Math.min(Math.max(0.2, scale - e.deltaY * zoomSensitivity), 3);
+    const targetScale = Math.min(Math.max(0.1, scale - e.deltaY * zoomSensitivity), 3);
     applyZoom(targetScale);
   };
 
   const handleZoom = (direction: 'in' | 'out') => {
     // Precise 5% step
-    const step = 0.05;
+    const step = 0.1;
     const targetScale = direction === 'in' 
         ? Math.min(3, scale + step)
-        : Math.max(0.2, scale - step);
+        : Math.max(0.1, scale - step);
     
     applyZoom(targetScale);
   };
@@ -139,9 +161,6 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
       if (isSelectionMode || shiftPressed) {
           setIsSelecting(true);
           const worldPos = getWorldCoordinates(pos.x, pos.y);
-          // Store raw screen pos for drawing box on UI layer relative to viewport? 
-          // Better to store world coords if box is inside world transform, OR screen coords if overlay.
-          // Let's store SCREEN COORDS for the div overlay to avoid scale math complexity in render
           setSelectionStart({ x: pos.x, y: pos.y });
           setSelectionCurrent({ x: pos.x, y: pos.y });
       } else {
@@ -218,8 +237,6 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
         // Find entities inside
         const selectedIds = entities
             .filter(e => {
-                // Only select interactive units (Persons) or maybe Lands too?
-                // Usually RTS selects Units. Let's stick to Persons and Lands.
                 if (e.type === EntityType.WALLET || e.type === EntityType.INTRUDER) return false;
                 
                 return e.position.x >= minX && e.position.x <= maxX &&
@@ -243,7 +260,6 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
   const handleCanvasClick = (e: React.MouseEvent) => {
       if (isPlacingLand || isPlacingPerson || (blocksToPlace && blocksToPlace > 0)) {
           const worldPos = getWorldCoordinates(e.clientX, e.clientY);
-          // Block placement logic will handle snapping inside createBlockEntity
           onLandPlace(worldPos);
       } else {
           // Trigger background click if we didn't pan or drag
@@ -258,14 +274,11 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
           return;
       }
       
-      // NEW: Intercept click if we are targeting a node for recharge
       if (isTargetingRecharge && entity.type === EntityType.LAND && onNodeRecharge) {
           onNodeRecharge(entity.id);
           return;
       }
 
-      // FIX: Prevent selection/popup for Blocks (Security Cubes)
-      // Users can drag them (via MouseDown) but clicking won't open properties
       if (entity.type === EntityType.BLOCK) {
           return;
       }
@@ -279,7 +292,6 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
         className="absolute pointer-events-none z-50"
         style={{ left: position.x, top: position.y }}
     >
-        {/* The Connection Cable SVG */}
         <svg 
             width="100" 
             height="500" 
@@ -293,16 +305,12 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
                     <stop offset="100%" stopColor="#ffffff" />
                 </linearGradient>
             </defs>
-            
-            {/* The physical 'nanotube' structure */}
             <path 
                 d="M50 0 L50 500" 
                 stroke="rgba(6,182,212,0.3)" 
                 strokeWidth="2" 
                 fill="none" 
             />
-            
-            {/* The ionized current flowing down */}
             <path 
                 d="M50 0 L50 500" 
                 stroke="url(#energyGradient)" 
@@ -312,15 +320,9 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
                 className="animate-energy-flow"
             />
         </svg>
-
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2">
-             {/* Connection Flash at contact point */}
              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-white rounded-full blur-xl animate-connection-flash mix-blend-overlay" />
-             
-             {/* Tech Ring Pulse */}
              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-20 border-2 border-tech-cyan rounded-full animate-shockwave-expand opacity-0" />
-             
-             {/* Central Node Glow */}
              <div className="w-4 h-4 bg-white rounded-full shadow-[0_0_20px_#06b6d4] animate-pulse" />
         </div>
     </div>
@@ -328,16 +330,13 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
 
   const getCursorStyle = () => {
       if (isPlacingLand || isPlacingPerson || isTargetingRecharge || (blocksToPlace && blocksToPlace > 0)) return 'cursor-crosshair';
-      if (isSelecting) return 'cursor-nwse-resize'; // Or standard pointer
+      if (isSelecting) return 'cursor-nwse-resize'; 
       if (isPanning) return 'cursor-grabbing';
       return 'cursor-grab';
   };
 
-  // --- BACKGROUND RENDER LOGIC ---
   const renderBackground = () => {
-      
       switch (level) {
-          // LEVEL 1: Dark Tech (Original)
           case 1:
               return (
                   <>
@@ -359,8 +358,6 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
                     <div className="absolute inset-0 border-4 border-cyan-900/50 rounded shadow-[0_0_50px_rgba(6,182,212,0.1)]" />
                   </>
               );
-
-          // LEVEL 2: Biotech / Nature (Green/Teal)
           case 2:
               return (
                   <>
@@ -376,8 +373,6 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
                        <div className="absolute inset-0 border-4 border-emerald-800/50 rounded shadow-[0_0_50px_rgba(16,185,129,0.2)]" />
                   </>
               );
-
-          // LEVEL 3: Ascension / Sky (Blue/Purple/White)
           case 3:
               return (
                   <>
@@ -399,8 +394,6 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
                       <div className="absolute inset-0 border-4 border-violet-500/50 rounded shadow-[0_0_80px_rgba(167,139,250,0.4)]" />
                   </>
               );
-
-          // LEVEL 4: Industrial / Core (Orange/Rust)
           case 4:
               return (
                   <>
@@ -417,8 +410,6 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
                       <div className="absolute inset-0 border-4 border-orange-700/50 rounded shadow-[0_0_50px_rgba(234,88,12,0.3)]" />
                   </>
               );
-
-          // LEVEL 5: Quantum / Void (Deep Purple/Black)
           case 5:
               return (
                   <>
@@ -434,8 +425,6 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
                       <div className="absolute inset-0 border-4 border-purple-900/50 rounded shadow-[0_0_80px_rgba(88,28,135,0.5)]" />
                   </>
               );
-
-          // LEVEL 6: Solar / Plasma (Red/Gold)
           case 6:
               return (
                   <>
@@ -445,8 +434,6 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
                       <div className="absolute inset-0 border-4 border-red-500/50 rounded shadow-[0_0_60px_rgba(220,38,38,0.5)]" />
                   </>
               );
-
-          // LEVEL 7: Ice / Cryo (Cyan/White/Blue)
           case 7:
               return (
                   <>
@@ -462,8 +449,6 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
                       <div className="absolute inset-0 border-4 border-cyan-400/50 rounded shadow-[0_0_60px_rgba(34,211,238,0.4)]" />
                   </>
               );
-
-          // LEVEL 8: Toxic / Waste (Acid Green/Brown)
           case 8:
               return (
                   <>
@@ -478,8 +463,6 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
                       <div className="absolute inset-0 border-4 border-lime-600/50 rounded shadow-[0_0_50px_rgba(101,163,13,0.4)]" />
                   </>
               );
-
-          // LEVEL 9: Nebula / Astral (Pink/Violet/Stars)
           case 9:
               return (
                   <>
@@ -496,14 +479,11 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
                       <div className="absolute inset-0 border-4 border-pink-500/30 rounded shadow-[0_0_90px_rgba(236,72,153,0.3)]" />
                   </>
               );
-
-          // LEVEL 10: Singularity / Omega (White/Rainbow/Glitch - The End)
-          default: // Level 10 and beyond
+          default: 
               return (
                   <>
                       <div className="absolute inset-0 bg-[#ffffff]" />
                       <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-300 opacity-90" />
-                      {/* Glitch Grid */}
                       <div 
                         className="absolute inset-0 opacity-10 pointer-events-none"
                         style={{
@@ -511,7 +491,6 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
                             backgroundSize: '50px 50px'
                         }}
                       />
-                      {/* Prism Effect */}
                       <div className="absolute inset-0 opacity-20 bg-gradient-to-r from-red-500 via-green-500 to-blue-500 mix-blend-overlay" />
                       <div className="absolute inset-0 border-[10px] border-black rounded-xl shadow-[inset_0_0_100px_rgba(0,0,0,0.5)]" />
                   </>
@@ -523,7 +502,7 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
     <div 
       ref={containerRef}
       className={`w-full h-full bg-[#020617] overflow-hidden relative ${getCursorStyle()}`}
-      style={{ touchAction: 'none' }} // Prevent scrolling on mobile
+      style={{ touchAction: 'none' }} 
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -534,7 +513,6 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
       onTouchMove={handleMouseMove}
       onTouchEnd={handleMouseUp}
     >
-      {/* Selection Box Overlay (Screen Space) */}
       {isSelecting && selectionStart && selectionCurrent && (
           <div 
             className="absolute z-50 border border-tech-cyan bg-tech-cyan/20 pointer-events-none"
@@ -547,7 +525,6 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
           />
       )}
 
-      {/* World Container */}
       <div 
         className="relative origin-top-left transition-transform duration-75 ease-out will-change-transform"
         style={{
@@ -556,7 +533,6 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
         }}
       >
-        {/* DYNAMIC BACKGROUND */}
         {renderBackground()}
         
         {entities.map(entity => (
@@ -565,44 +541,36 @@ export const WorldCanvas: React.FC<WorldCanvasProps> = ({
               entity={entity} 
               onClick={handleEntityClickWrapper}
               onMouseDown={handleEntityMouseDown}
-              walletStats={walletStats} // NEW: Pass Stats to Entity Node
+              walletStats={walletStats}
               isSelected={selectedEntityIds && selectedEntityIds.includes(entity.id)}
             />
-            
-            {/* Show Recharge Effect ONLY on the specific target node */}
             {entity.type === EntityType.LAND && rechargingNodeId === entity.id && (
                 <NanotubeRechargeEffect position={entity.position} />
             )}
           </React.Fragment>
         ))}
-
       </div>
 
-      {/* Vignette (Tech Style) */}
       <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,transparent_40%,#020617_100%)] opacity-80" />
 
-      {/* Placing Indicator */}
       {isPlacingLand && (
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none text-neon-green animate-pulse font-tech text-xl md:text-2xl font-bold bg-slate-900/90 px-6 py-3 rounded-xl backdrop-blur-md shadow-[0_0_20px_rgba(34,197,94,0.4)] border border-neon-green/50 tracking-widest whitespace-nowrap z-50">
               [ TARGET: DATA NODE COORDINATES ]
           </div>
       )}
 
-      {/* Placing Person Indicator */}
       {isPlacingPerson && (
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none text-tech-cyan animate-pulse font-tech text-xl md:text-2xl font-bold bg-slate-900/90 px-6 py-3 rounded-xl backdrop-blur-md shadow-[0_0_20px_rgba(6,182,212,0.4)] border border-tech-cyan/50 tracking-widest whitespace-nowrap z-50">
               [ TARGET: BIOBOT COORDINATES ]
           </div>
       )}
 
-      {/* Placing Blocks Indicator */}
       {blocksToPlace !== undefined && blocksToPlace > 0 && (
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none text-white animate-pulse font-tech text-xl md:text-2xl font-bold bg-slate-900/90 px-6 py-3 rounded-xl backdrop-blur-md shadow-[0_0_20px_rgba(255,255,255,0.4)] border border-gray-400/50 tracking-widest whitespace-nowrap z-50">
               [ BUILD MODE ACTIVE ]
           </div>
       )}
 
-      {/* Zoom Controls */}
       <div className="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 flex flex-col gap-2 bg-slate-900/80 backdrop-blur-md p-2 rounded-xl shadow-2xl border border-slate-700 pointer-events-auto scale-75 md:scale-100 origin-right">
         <button 
             onClick={() => handleZoom('in')}
