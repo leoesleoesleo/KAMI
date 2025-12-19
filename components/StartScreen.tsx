@@ -8,8 +8,9 @@ interface StartScreenProps {
   onContinue?: () => void;
 }
 
-// Resource URL provided
+// Resource URLs
 const BRAND_LOGO_URL = "https://leoesleoesleo.github.io/imagenes/biobots_genesys.png";
+const SHARE_PREVIEW_URL = "https://leoesleoesleo.github.io/imagenes/biobots_genesys.png";
 
 export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, onContinue }) => {
   const [name, setName] = useState('');
@@ -313,43 +314,51 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                       <X size={20} />
                   </button>
                   
-                  <div className="flex flex-col items-center mb-6">
+                  <div className="flex flex-col items-center mb-4">
                       <Share2 size={32} className="text-tech-cyan mb-2 animate-pulse" />
-                      <h3 className="font-tech text-xl font-bold text-white tracking-widest uppercase">COMPARTIR SISTEMA</h3>
-                      <p className="text-xs text-gray-400 text-center mt-1">Invita a otros Arquitectos a unirse a la simulación evolutiva.</p>
+                      <h3 className="font-tech text-xl font-bold text-white tracking-widest uppercase text-center">COMPARTIR SISTEMA</h3>
+                  </div>
+
+                  {/* Share Image Preview Card */}
+                  <div className="mb-6 rounded-lg overflow-hidden border border-white/10 bg-black/40">
+                      <img src={SHARE_PREVIEW_URL} alt="Preview" className="w-full h-32 object-cover" />
+                      <div className="p-3 bg-slate-800/50">
+                          <h4 className="text-xs font-tech font-bold text-white mb-1 tracking-wider uppercase">BioBots: Génesis Evolutiva</h4>
+                          <p className="text-[10px] text-gray-400 font-mono leading-tight">Simulador de evolución tecnológica. ¡Únete a la simulación!</p>
+                      </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 mb-4">
                       <button 
                         onClick={() => handleManualShare('whatsapp')}
-                        className="flex flex-col items-center gap-2 p-4 bg-green-900/20 border border-green-700 rounded-lg hover:bg-green-800/30 transition-all hover:scale-105"
+                        className="flex flex-col items-center gap-2 p-3 bg-green-900/20 border border-green-700 rounded-lg hover:bg-green-800/30 transition-all hover:scale-105"
                       >
                           <MessageCircle size={24} className="text-green-400" />
-                          <span className="text-sm font-bold text-green-100">WhatsApp</span>
+                          <span className="text-xs font-bold text-green-100">WhatsApp</span>
                       </button>
 
                       <button 
                         onClick={() => handleManualShare('facebook')}
-                        className="flex flex-col items-center gap-2 p-4 bg-blue-900/20 border border-blue-700 rounded-lg hover:bg-blue-800/30 transition-all hover:scale-105"
+                        className="flex flex-col items-center gap-2 p-3 bg-blue-900/20 border border-blue-700 rounded-lg hover:bg-blue-800/30 transition-all hover:scale-105"
                       >
                           <Globe size={24} className="text-blue-400" />
-                          <span className="text-sm font-bold text-blue-100">Facebook</span>
+                          <span className="text-xs font-bold text-blue-100">Facebook</span>
                       </button>
 
                       <button 
                         onClick={() => handleManualShare('twitter')}
-                        className="flex flex-col items-center gap-2 p-4 bg-sky-900/20 border border-sky-700 rounded-lg hover:bg-sky-800/30 transition-all hover:scale-105"
+                        className="flex flex-col items-center gap-2 p-3 bg-sky-900/20 border border-sky-700 rounded-lg hover:bg-sky-800/30 transition-all hover:scale-105"
                       >
                           <Send size={24} className="text-sky-400" />
-                          <span className="text-sm font-bold text-sky-100">Twitter / X</span>
+                          <span className="text-xs font-bold text-sky-100">Twitter / X</span>
                       </button>
 
                       <button 
                         onClick={() => handleManualShare('copy')}
-                        className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-600 rounded-lg hover:bg-gray-700 transition-all hover:scale-105"
+                        className="flex flex-col items-center gap-2 p-3 bg-gray-800/50 border border-gray-600 rounded-lg hover:bg-gray-700 transition-all hover:scale-105"
                       >
                           <Link size={24} className="text-gray-300" />
-                          <span className="text-sm font-bold text-gray-200">Copiar Link</span>
+                          <span className="text-xs font-bold text-gray-200">Copiar Link</span>
                       </button>
                   </div>
               </div>
