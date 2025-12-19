@@ -664,56 +664,48 @@ export const processAgent = (entity: GameEntity, biobots: GameEntity[], blocks: 
     if (attr.isDying) {
         attr.state = 'seeking'; 
         attr.targetId = undefined;
-        attr.currentAttackStart = undefined;
         return { ...entity, agentAttributes: attr };
     }
 
-    const VISUAL_COOLDOWN = 500;
-    if (attr.lastShotTime && (now - attr.lastShotTime < VISUAL_COOLDOWN)) {
-        attr.state = 'attacking';
-        return { ...entity, agentAttributes: attr };
-    }
+    // AJUSTE: LOS AGENTES YA NO ATACAN, SOLO BUSCAN/PERSEGUIR
+    attr.state = 'seeking';
+    attr.currentAttackStart = undefined;
 
     let targetBot = attr.targetId ? biobots.find(b => b.id === attr.targetId) : undefined;
     if (!targetBot || targetBot.attributes?.estado === 'muerto' || (targetBot.attributes?.energia || 0) <= 0) {
-        attr.targetId = undefined; attr.state = 'seeking'; attr.combatTargetPosition = undefined; attr.currentAttackStart = undefined;
+        attr.targetId = undefined;
         targetBot = biobots.filter(b => b.attributes?.estado !== 'muerto' && (b.attributes?.energia || 0) > 0)
             .sort((a, b) => Math.sqrt(Math.pow(a.position.x - entity.position.x, 2) + Math.pow(a.position.y - entity.position.y, 2)) - Math.sqrt(Math.pow(b.position.x - entity.position.x, 2) + Math.pow(b.position.y - entity.position.y, 2)))[0];
         if (targetBot) attr.targetId = targetBot.id;
     }
 
     const baseSpeed = GAME_CONFIG.AGENT.SPEED;
+    let nextX = entity.position.x;
+    let nextY = entity.position.y;
+
     if (targetBot) {
         attr.combatTargetPosition = targetBot.position;
         const dx = targetBot.position.x - entity.position.x;
         const dy = targetBot.position.y - entity.position.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const hasVision = hasLineOfSight(entity.position, targetBot.position, blocks);
-
-        const isBotFightingMe = targetBot.attributes?.estado === 'peleando' && targetBot.attributes?.combatTargetId === entity.id;
-
-        if (dist <= GAME_CONFIG.AGENT.ATTACK_RANGE && hasVision && !isBotFightingMe) {
-            attr.state = 'attacking';
-            if (!attr.currentAttackStart) attr.currentAttackStart = now;
-            const orbitDir = Math.sin(now / 500) > 0 ? 1 : -1;
-            entity.position.x += ((dx / dist) * 0.1 + (-dy / dist) * 0.9 * orbitDir) * baseSpeed;
-            entity.position.y += ((dy / dist) * 0.1 + (dx / dist) * 0.9 * orbitDir) * baseSpeed;
-        } else {
-            attr.state = 'seeking';
-            attr.currentAttackStart = undefined;
-            if (!isBotFightingMe) {
-                entity.position.x += (dx / dist) * baseSpeed;
-                entity.position.y += (dy / dist) * baseSpeed;
-            }
+        
+        if (dist > 5) {
+            nextX += (dx / dist) * baseSpeed;
+            nextY += (dy / dist) * baseSpeed;
         }
     } else {
         const seed = getEntitySeed(entity.id);
-        entity.position.x += Math.cos(now * 0.001 + seed) * baseSpeed;
-        entity.position.y += Math.sin(now * 0.0013 + seed) * baseSpeed;
+        nextX += Math.cos(now * 0.001 + seed) * baseSpeed;
+        nextY += Math.sin(now * 0.0013 + seed) * baseSpeed;
     }
 
-    entity.position.x = Math.max(0, Math.min(WORLD_SIZE, entity.position.x));
-    entity.position.y = Math.max(0, Math.min(WORLD_SIZE, entity.position.y));
+    // AJUSTE: COLISIÓN RÍGIDA CON BLOQUES PARA AGENTES (NO PUEDEN PASAR POR ENCIMA NI DEBAJO)
+    const collidedBlock = blocks.find(b => checkCollision({ x: nextX, y: nextY }, AGENT_COLLISION_RADIUS, b.position, BLOCK_COLLISION_RADIUS));
+    if (!collidedBlock) {
+        entity.position.x = Math.max(0, Math.min(WORLD_SIZE, nextX));
+        entity.position.y = Math.max(0, Math.min(WORLD_SIZE, nextY));
+    }
+
     return { ...entity, agentAttributes: attr };
 };
 
@@ -729,9 +721,12 @@ export const processBioBot = (entity: GameEntity, entities: GameEntity[], now: n
 
     attr.energia = Math.max(0, attr.energia - (attr.estado === 'trabajando' || attr.estado === 'peleando' ? GAME_CONFIG.BIOBOT.ENERGY_DECAY_WORK : GAME_CONFIG.BIOBOT.ENERGY_DECAY_IDLE));
 
-    if (attr.estado === 'trabajando' && attr.workEndTime && now > attr.workEndTime) {
-        attr.estado = 'ocioso'; attr.workEndTime = undefined; attr.workTargetId = undefined;
-    }
+    const isEvolved = (attr.evolutionLevel || 1) >= 2;
+    
+    // UMBRAL DE SEGURIDAD: 15% para Alfas (Combate), 5% para Betas (Trabajo)
+    const combatSafetyThreshold = (attr.sexo === Gender.MALE) ? 15 : 5;
+    const isLowEnergy = attr.energia <= combatSafetyThreshold;
+    const isRecharging = attr.estado === 'alimentandose';
 
     let nearestLand: GameEntity | null = null;
     let minDist = Infinity;
@@ -740,19 +735,44 @@ export const processBioBot = (entity: GameEntity, entities: GameEntity[], now: n
         if (d < minDist) { minDist = d; nearestLand = l; }
     });
 
-    // PRIORIDAD Y SUPERVIVENCIA:
-    // 1. Si está en combate real (peleando), prioriza el ataque hasta el final o energía crítica.
-    // 2. Si está cazando (buscando al enemigo) pero tiene energía crítica (<15%), se detiene a cargar.
-    const isEngagedInCombat = attr.estado === 'peleando' || attr.estado === 'cazando';
-    const hasCriticalEnergy = attr.energia < 15;
+    // --- TERMINACIÓN DE CICLO PARA NIVEL 1 ---
+    const isNodeDepleted = nearestLand && (nearestLand.landAttributes?.resourceLevel || 0) <= 0;
+    
+    if (attr.estado === 'trabajando' && !isEvolved) {
+        if ((attr.workEndTime && now > attr.workEndTime) || isNodeDepleted) {
+            attr.estado = 'ocioso'; 
+            attr.workEndTime = undefined; 
+            attr.workTargetId = undefined;
+        }
+    }
 
-    // Solo cargamos si NO estamos peleando cuerpo a cuerpo, a menos que la energía sea crítica.
-    if ((!isEngagedInCombat || (attr.estado === 'cazando' && hasCriticalEnergy)) && attr.energia < 90 && nearestLand && nearestLand.landAttributes && nearestLand.landAttributes.resourceLevel > 0 && minDist < GAME_CONFIG.BIOBOT.FEEDING_RADIUS) {
+    // PRIORIDAD Y SUPERVIVENCIA:
+    const isEngagedInCombat = attr.estado === 'peleando' || attr.estado === 'cazando';
+    const hasCriticalEnergy = isLowEnergy;
+
+    // RETIRADA TÁCTICA PARA ALFAS: Si energía <= 15% (incluyendo 0%), abortar combate inmediatamente
+    if (attr.sexo === Gender.MALE && isLowEnergy && isEngagedInCombat) {
+        attr.estado = 'ocioso';
+        attr.combatTargetId = undefined;
+        attr.combatTargetPosition = undefined;
+    }
+
+    // Lógica de Alimentación Automática
+    if ((!isEngagedInCombat || (attr.estado === 'cazando' && hasCriticalEnergy)) && (isLowEnergy || isRecharging) && nearestLand && nearestLand.landAttributes && nearestLand.landAttributes.resourceLevel > 0 && minDist < GAME_CONFIG.BIOBOT.FEEDING_RADIUS) {
         attr.estado = 'alimentandose';
         attr.energia = Math.min(100, attr.energia + GAME_CONFIG.BIOBOT.ENERGY_RECHARGE_RATE);
         nearestLand.landAttributes.resourceLevel = Math.max(0, nearestLand.landAttributes.resourceLevel - 0.08);
+        
+        // Al terminar de recargar al 100%, volver a estar ocioso para que la auto-asignación lo tome
+        if (attr.energia >= 100) {
+            attr.estado = 'ocioso';
+        }
     } else if (attr.estado === 'trabajando' && nearestLand && (nearestLand.landAttributes?.resourceLevel || 0) > 0) {
         attr.holdingCryptos = (attr.holdingCryptos || 0) + calculateWorkPoints(nearestLand.landAttributes!.resourceLevel);
+        
+        if (isEvolved && !isLowEnergy) {
+            attr.workEndTime = now + 60000; 
+        }
     }
 
     if (nearestLand && minDist < interactionRadius + 20 && (attr.holdingCryptos || 0) > 0) {
@@ -762,7 +782,7 @@ export const processBioBot = (entity: GameEntity, entities: GameEntity[], now: n
         }
     }
 
-    // LÓGICA DE AUTO-ASIGNACIÓN (Solo si no está en estado crítico)
+    // LÓGICA DE AUTO-ASIGNACIÓN (Solo si tiene energía suficiente)
     if (!hasCriticalEnergy && attr.evolutionLevel > 1 && (attr.estado === 'ocioso' || attr.estado === 'recolectando' || attr.estado === 'cazando')) {
         if (attr.sexo === Gender.FEMALE) {
             const target = lands.find(l => (l.landAttributes?.resourceLevel || 0) > 0 && (attr.workMode !== 'collector' || l.landAttributes?.isGhost));
@@ -811,7 +831,12 @@ export const processBioBot = (entity: GameEntity, entities: GameEntity[], now: n
 
     // --- CÁLCULO DE POSICIÓN OBJETIVO ---
     let targetPos: Vector2 = { x: entity.position.x, y: entity.position.y };
-    if (attr.estado === 'peleando' && attr.combatTargetPosition) targetPos = { x: attr.combatTargetPosition.x + Math.cos(now/400)*30, y: attr.combatTargetPosition.y + Math.sin(now/400)*30 };
+    
+    // REFUERZO DE AUTO-RECARGA: Si energía <= 15% (incluyendo 0%), dirigirse automáticamente al nodo de carga
+    if (isLowEnergy && nearestLand && attr.estado !== 'alimentandose') {
+        targetPos = nearestLand.position;
+    } 
+    else if (attr.estado === 'peleando' && attr.combatTargetPosition) targetPos = { x: attr.combatTargetPosition.x + Math.cos(now/400)*30, y: attr.combatTargetPosition.y + Math.sin(now/400)*30 };
     else if (attr.estado === 'cazando' && attr.combatTargetPosition) targetPos = attr.combatTargetPosition;
     else if (attr.estado === 'recolectando' && attr.workTargetPosition) targetPos = attr.workTargetPosition;
     else if (attr.estado === 'trabajando' && nearestLand) targetPos = { x: nearestLand.position.x + Math.cos(now/800)*45, y: nearestLand.position.y + Math.sin(now/800)*45 };
@@ -819,42 +844,31 @@ export const processBioBot = (entity: GameEntity, entities: GameEntity[], now: n
 
     const d = Math.sqrt(Math.pow(targetPos.x - entity.position.x, 2) + Math.pow(targetPos.y - entity.position.y, 2));
     if (d > 1) {
+        // En estado crítico (0%-15%), los Alfas mantienen velocidad constante para llegar al alimento
         const speed = baseSpeed * (attr.estado === 'cazando' ? 1.5 : attr.estado === 'recolectando' ? 1.3 : 1) * (attr.evolutionLevel > 1 ? 1.8 : 1);
         
-        // --- NAVEGACIÓN CON EVITACIÓN DE BLOQUES ---
         let moveX = ((targetPos.x - entity.position.x) / d);
         let moveY = ((targetPos.y - entity.position.y) / d);
 
-        // Detectar bloques cercanos para rodearlos suavemente
         blocks.forEach(b => {
             const dx = entity.position.x - b.position.x;
             const dy = entity.position.y - b.position.y;
             const distSq = dx * dx + dy * dy;
-            
             if (distSq < BLOCK_AVOIDANCE_RADIUS * BLOCK_AVOIDANCE_RADIUS) {
                 const dist = Math.sqrt(distSq);
-                // Fuerza de repulsión que aumenta cuanto más cerca está
                 const pushStrength = (BLOCK_AVOIDANCE_RADIUS - dist) / BLOCK_AVOIDANCE_RADIUS;
-                
-                // Calculamos un vector perpendicular a la dirección del bloque para "deslizarse"
-                // Esto crea el efecto de rodear el objeto
                 const normalX = dx / dist;
                 const normalY = dy / dist;
-                
-                // Mezclamos la dirección deseada con la fuerza de evitación
                 moveX += normalX * pushStrength * 2.0;
                 moveY += normalY * pushStrength * 2.0;
             }
         });
 
-        // Re-normalizar el vector de movimiento final tras la evitación
         const finalMag = Math.sqrt(moveX * moveX + moveY * moveY);
         const nx = entity.position.x + (moveX / finalMag) * speed;
         const ny = entity.position.y + (moveY / finalMag) * speed;
 
-        // Colisión final rígida (Failsafe)
         if (blocks.some(b => checkCollision({ x: nx, y: ny }, 12, b.position, 22))) {
-             // Si el sistema de evitación falla por un ángulo muerto, rebote ligero lateral
              const nearest = blocks.sort((a,b) => Math.sqrt(Math.pow(a.position.x-nx,2)+Math.pow(a.position.y-ny,2)) - Math.sqrt(Math.pow(b.position.x-nx,2)+Math.pow(b.position.y-ny,2)))[0];
              const angleToNearest = Math.atan2(entity.position.y - nearest.position.y, entity.position.x - nearest.position.x);
              entity.position.x += Math.cos(angleToNearest) * speed;
@@ -943,19 +957,6 @@ export const updateWorldState = (entities: GameEntity[], speed: number, interact
         }
 
         const updated = processAgent(agent, biobots, blocks, now);
-        if (updated.agentAttributes?.state === 'attacking' && updated.agentAttributes.targetId) {
-            const target = biobots.find(b => b.id === updated.agentAttributes!.targetId);
-            if (target && target.attributes?.estado !== 'muerto') {
-                const attr = updated.agentAttributes;
-                if (!attr.currentAttackStart) attr.currentAttackStart = now;
-                const timeToKill = (target.attributes.evolutionLevel >= 2 ? 6000 : 3000) * Math.max(0.1, target.attributes.energia / 100);
-                if (now - attr.currentAttackStart >= timeToKill) {
-                    destructionSet.add(target.id); attr.currentAttackStart = undefined; attr.lastShotTime = now;
-                } else {
-                    attr.lastShotTime = now;
-                }
-            }
-        }
         nextEntities.push(updated);
     });
 

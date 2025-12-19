@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AVATAR_PRESETS, BACKGROUND_IMAGE, GAME_VERSION, DEDICATION_IMAGE_URL } from '../constants';
-import { Play, User, Cpu, RefreshCcw, Heart, X, Info, Code2, Cloud, Palette, Smartphone, Zap, BookOpen, Shield, Skull, Database, Wallet, TrendingUp, Binary, Eye, ThumbsUp, Activity, Share2, Globe, MessageCircle, Send, Link } from 'lucide-react';
+import { Play, User, Cpu, RefreshCcw, Heart, X, Info, Code2, Cloud, Palette, Smartphone, Zap, BookOpen, Shield, Skull, Database, Wallet, TrendingUp, Binary, Eye, ThumbsUp, Activity, Share2, Check } from 'lucide-react';
 
 interface StartScreenProps {
   onStart: (name: string, avatar: string) => void;
@@ -8,9 +8,8 @@ interface StartScreenProps {
   onContinue?: () => void;
 }
 
-// Resource URLs
+// Resource URL provided
 const BRAND_LOGO_URL = "https://leoesleoesleo.github.io/imagenes/biobots_genesys.png";
-const SHARE_PREVIEW_URL = "https://leoesleoesleo.github.io/imagenes/biobots_genesys.png";
 
 export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, onContinue }) => {
   const [name, setName] = useState('');
@@ -18,7 +17,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
   const [showCredits, setShowCredits] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showLore, setShowLore] = useState(false);
-  const [isShareModalOpen, setShareModalOpen] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   // Social Stats State - Initialized to 0
   const [visitCount, setVisitCount] = useState(0);
@@ -53,50 +52,31 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
     localStorage.setItem('biobots_liked', newState.toString());
   };
 
-  const handleShareGame = async () => {
-      const shareData = {
-          title: 'BioBots: Génesis Evolutiva',
-          text: '¡Únete a la simulación! Gestiona BioBots, mina Criptomonedas y evoluciona en este universo digital. 🤖⚡',
-          url: window.location.href
-      };
+  const handleShare = async () => {
+    const shareData = {
+      title: 'BioBots: Genesys',
+      text: 'BioBots: Genesys es un juego de estrategia y supervivencia donde la evolución, la tecnología y la inteligencia artificial convergen en un mundo dominado por sistemas autónomos. 🤖⚡',
+      url: window.location.href,
+    };
 
-      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
-          try {
-              await navigator.share(shareData);
-          } catch (err) {
-              setShareModalOpen(true);
-          }
-      } else {
-          setShareModalOpen(true);
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          console.error('Error sharing:', err);
+        }
       }
-  };
-
-  const handleManualShare = (platform: 'whatsapp' | 'facebook' | 'twitter' | 'copy') => {
-      const url = window.location.href;
-      const text = '¡Únete a la simulación! Gestiona BioBots, mina Criptomonedas y evoluciona en este universo digital. 🤖⚡';
-      
-      let shareUrl = '';
-
-      switch (platform) {
-          case 'whatsapp':
-              shareUrl = `https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`;
-              break;
-          case 'facebook':
-              shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
-              break;
-          case 'twitter':
-              shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
-              break;
-          case 'copy':
-              navigator.clipboard.writeText(`${text}\n${url}`);
-              alert("¡Enlace copiado al portapapeles!");
-              break;
+    } else {
+      // Fallback: Copy to clipboard
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 3000);
+      } catch (err) {
+        console.error('Failed to copy:', err);
       }
-
-      if (platform !== 'copy') {
-          window.open(shareUrl, '_blank');
-      }
-      setShareModalOpen(false);
+    }
   };
 
   return (
@@ -118,8 +98,22 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
       
       <div className="absolute inset-0 z-0 bg-gradient-to-t from-deep-space via-deep-space/80 to-transparent" />
 
-      {/* TOP RIGHT ACTIONS (Dedication, About, History) */}
+      {/* TOP RIGHT ACTIONS (Dedication, About, History, Share) */}
       <div className="absolute top-6 right-6 z-50 flex flex-wrap justify-end gap-3 pointer-events-auto">
+          <button 
+            onClick={handleShare}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur border transition-all group ${copySuccess ? 'bg-neon-green/20 border-neon-green text-neon-green' : 'bg-slate-900/80 border-white/10 hover:border-tech-cyan/50 hover:bg-tech-cyan/10'}`}
+          >
+              {copySuccess ? (
+                <Check size={16} className="animate-pop-in" />
+              ) : (
+                <Share2 size={16} className="text-tech-cyan group-hover:scale-110 transition-transform" />
+              )}
+              <span className="text-xs font-mono font-bold tracking-tight md:tracking-normal group-hover:text-tech-cyan">
+                {copySuccess ? '¡COPIADO!' : 'COMPARTIR'}
+              </span>
+          </button>
+
           <button 
             onClick={() => setShowLore(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900/80 backdrop-blur border border-white/10 hover:border-yellow-500/50 hover:bg-yellow-900/20 transition-all group"
@@ -158,7 +152,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                 {/* The Logo Image - Optimized responsiveness */}
                 <img 
                     src={BRAND_LOGO_URL} 
-                    alt="BioBots: Génesis Evolutiva" 
+                    alt="BioBots: Genesys" 
                     className="relative z-10 w-[85%] sm:w-[70%] md:w-full max-w-[320px] sm:max-w-[450px] md:max-w-[600px] lg:max-w-[700px] h-auto max-h-[25vh] md:max-h-none object-contain drop-shadow-[0_0_20px_rgba(6,182,212,0.4)] transform transition-transform duration-700 group-hover:scale-105 animate-float"
                 />
 
@@ -222,20 +216,10 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                     </div>
                     
                     <div className="flex gap-4 items-center">
-                         {/* Large Preview & Share Action */}
-                         <div className="relative shrink-0 flex flex-col items-center gap-2">
-                             <div className="relative w-12 h-12 md:w-20 md:h-20">
-                                 <div className="absolute inset-0 bg-tech-cyan/20 rounded-full animate-pulse" />
-                                 <img src={selectedAvatar} alt="Selected" className="w-full h-full rounded-full object-cover border-2 border-tech-cyan shadow-[0_0_15px_rgba(6,182,212,0.5)] bg-black/50" />
-                             </div>
-                             <button 
-                                onClick={handleShareGame}
-                                className="flex items-center gap-1 px-2 py-1 rounded bg-tech-cyan/10 border border-tech-cyan/30 hover:bg-tech-cyan/20 transition-all group"
-                                title="Compartir Perfil"
-                             >
-                                <Share2 size={12} className="text-tech-cyan group-hover:scale-110" />
-                                <span className="text-[8px] font-mono font-bold text-tech-cyan">INVITAR</span>
-                             </button>
+                         {/* Large Preview */}
+                         <div className="relative w-12 h-12 md:w-20 md:h-20 shrink-0">
+                             <div className="absolute inset-0 bg-tech-cyan/20 rounded-full animate-pulse" />
+                             <img src={selectedAvatar} alt="Selected" className="w-full h-full rounded-full object-cover border-2 border-tech-cyan shadow-[0_0_15px_rgba(6,182,212,0.5)] bg-black/50" />
                          </div>
                          
                          {/* Grid */}
@@ -305,65 +289,6 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
         </div>
 
       </div>
-
-      {/* --- SHARE MODAL (Fallback) --- */}
-      {isShareModalOpen && (
-          <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/90 backdrop-blur-md pointer-events-auto p-4 animate-fade-in">
-              <div className="bg-slate-900 rounded-xl p-6 w-full max-w-sm shadow-[0_0_50px_rgba(6,182,212,0.3)] border border-tech-cyan/50 relative animate-pop-in">
-                  <button onClick={() => setShareModalOpen(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
-                      <X size={20} />
-                  </button>
-                  
-                  <div className="flex flex-col items-center mb-4">
-                      <Share2 size={32} className="text-tech-cyan mb-2 animate-pulse" />
-                      <h3 className="font-tech text-xl font-bold text-white tracking-widest uppercase text-center">COMPARTIR SISTEMA</h3>
-                  </div>
-
-                  {/* Share Image Preview Card */}
-                  <div className="mb-6 rounded-lg overflow-hidden border border-white/10 bg-black/40">
-                      <img src={SHARE_PREVIEW_URL} alt="Preview" className="w-full h-32 object-cover" />
-                      <div className="p-3 bg-slate-800/50">
-                          <h4 className="text-xs font-tech font-bold text-white mb-1 tracking-wider uppercase">BioBots: Génesis Evolutiva</h4>
-                          <p className="text-[10px] text-gray-400 font-mono leading-tight">Simulador de evolución tecnológica. ¡Únete a la simulación!</p>
-                      </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                      <button 
-                        onClick={() => handleManualShare('whatsapp')}
-                        className="flex flex-col items-center gap-2 p-3 bg-green-900/20 border border-green-700 rounded-lg hover:bg-green-800/30 transition-all hover:scale-105"
-                      >
-                          <MessageCircle size={24} className="text-green-400" />
-                          <span className="text-xs font-bold text-green-100">WhatsApp</span>
-                      </button>
-
-                      <button 
-                        onClick={() => handleManualShare('facebook')}
-                        className="flex flex-col items-center gap-2 p-3 bg-blue-900/20 border border-blue-700 rounded-lg hover:bg-blue-800/30 transition-all hover:scale-105"
-                      >
-                          <Globe size={24} className="text-blue-400" />
-                          <span className="text-xs font-bold text-blue-100">Facebook</span>
-                      </button>
-
-                      <button 
-                        onClick={() => handleManualShare('twitter')}
-                        className="flex flex-col items-center gap-2 p-3 bg-sky-900/20 border border-sky-700 rounded-lg hover:bg-sky-800/30 transition-all hover:scale-105"
-                      >
-                          <Send size={24} className="text-sky-400" />
-                          <span className="text-xs font-bold text-sky-100">Twitter / X</span>
-                      </button>
-
-                      <button 
-                        onClick={() => handleManualShare('copy')}
-                        className="flex flex-col items-center gap-2 p-3 bg-gray-800/50 border border-gray-600 rounded-lg hover:bg-gray-700 transition-all hover:scale-105"
-                      >
-                          <Link size={24} className="text-gray-300" />
-                          <span className="text-xs font-bold text-gray-200">Copiar Link</span>
-                      </button>
-                  </div>
-              </div>
-          </div>
-      )}
 
       {/* --- CREDITS & DEDICATION MODAL --- */}
       {showCredits && (
@@ -473,6 +398,8 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                               Para dar vida a este pequeño ecosistema, el Arquitecto construye <strong className="text-neon-green">granjas de servidores</strong> que generan energía 🌱. A medida que estas se cargan, cambian de amarillo a rosa y finalmente a verde, señalando su potencia máxima. Los biobots dependen de ellas para vivir y <strong className="text-white">minar criptomonedas</strong>.
                           </p>
                       </div>
+
+                      {/* Otros segmentos... */}
                   </div>
               </div>
           </div>

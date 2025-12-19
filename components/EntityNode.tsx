@@ -438,7 +438,7 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
     if (isNewborn && birthPhase !== 'COMPLETE') {
         return (
             <div 
-                className="absolute z-20 pointer-events-none"
+                className="absolute z-[30] pointer-events-none"
                 style={{ left: entity.position.x, top: entity.position.y }}
             >
                 {(birthPhase === 'MACHINE' || birthPhase === 'EGG' || birthPhase === 'CRITICAL') && (
@@ -485,7 +485,7 @@ export const EntityNode: React.FC<EntityNodeProps> = ({ entity, onClick, onMouse
 
     return (
       <div 
-        className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-move group transition-transform duration-300 animate-pop-in ${isPerformingSpecial ? 'z-[100]' : 'z-10'}`}
+        className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-move group transition-transform duration-300 animate-pop-in ${isPerformingSpecial ? 'z-[100]' : 'z-[30]'}`}
         style={{ 
             left: entity.position.x, 
             top: entity.position.y,

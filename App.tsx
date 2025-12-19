@@ -1045,11 +1045,14 @@ function App() {
 
     switch (actionType) {
         case 'CREATE_WORK':
-            const workEndTime = Date.now() + GAME_CONFIG.BIOBOT.WORK_DURATION_MS; 
-            
-            // Check if we are targeting a specific bot (payload is ID)
             const targetId = payload;
-
+            const targetBot = gameState.entities.find(e => e.id === targetId);
+            const isEvolved = targetBot?.attributes && targetBot.attributes.evolutionLevel >= 2;
+            
+            // Si es Nivel 1, el tiempo de trabajo es mucho menor (30s) para que se perciba como un ciclo único
+            const duration = isEvolved ? GAME_CONFIG.BIOBOT.WORK_DURATION_MS : 30000;
+            const workEndTime = Date.now() + duration; 
+            
             setGameState(prev => ({
                 ...prev,
                 entities: prev.entities.map(e => {
