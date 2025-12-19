@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { AVATAR_PRESETS, BACKGROUND_IMAGE, GAME_VERSION, DEDICATION_IMAGE_URL } from '../constants';
-import { Play, User, Cpu, RefreshCcw, Heart, X, Info, Code2, Cloud, Palette, Smartphone, Zap, BookOpen, Shield, Skull, Database, Wallet, TrendingUp, Binary, Eye, ThumbsUp, Activity, Share2, Check } from 'lucide-react';
+import { Play, User, Cpu, RefreshCcw, Heart, X, Info, Code2, Cloud, Palette, Smartphone, Zap, BookOpen, Shield, Skull, Database, Wallet, TrendingUp, Binary, Eye, ThumbsUp, Activity, Share2, Check, Layout, Layers, HardDrive } from 'lucide-react';
 
 interface StartScreenProps {
   onStart: (name: string, avatar: string) => void;
@@ -37,7 +38,6 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
     const likedState = localStorage.getItem('biobots_liked') === 'true';
     setHasLiked(likedState);
     
-    // Initialize like count based on stored state (0 or 1)
     if (likedState) {
         setLikeCount(1);
     } else {
@@ -68,7 +68,6 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
         }
       }
     } else {
-      // Fallback: Copy to clipboard
       try {
         await navigator.clipboard.writeText(window.location.href);
         setCopySuccess(true);
@@ -98,7 +97,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
       
       <div className="absolute inset-0 z-0 bg-gradient-to-t from-deep-space via-deep-space/80 to-transparent" />
 
-      {/* TOP RIGHT ACTIONS (Dedication, About, History, Share) */}
+      {/* TOP RIGHT ACTIONS */}
       <div className="absolute top-6 right-6 z-50 flex flex-wrap justify-end gap-3 pointer-events-auto">
           <button 
             onClick={handleShare}
@@ -139,38 +138,21 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
           </button>
       </div>
 
-      {/* MAIN CONTAINER: Split Screen Layout */}
+      {/* MAIN CONTAINER */}
       <div className="relative z-10 w-full max-w-7xl p-4 md:p-8 flex flex-col md:flex-row-reverse items-center justify-center h-full overflow-y-auto overflow-x-hidden scrollbar-hide gap-4 md:gap-16 pt-24 md:pt-8">
-        
-        {/* --- RIGHT PANEL (Visual / Hero Image) --- */}
         <div className="w-full md:w-1/2 flex flex-col items-center justify-center shrink-0 animate-fade-in-down mb-4 md:mb-0">
-            {/* Main Brand Image Container */}
             <div className="relative group perspective-1000 flex justify-center w-full">
-                {/* Back Glow Effect */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] md:w-[120%] h-[90%] md:h-[120%] bg-tech-cyan/20 blur-[40px] md:blur-[60px] rounded-full opacity-60 group-hover:opacity-80 transition-opacity duration-700 animate-pulse-slow" />
-                
-                {/* The Logo Image - Optimized responsiveness */}
                 <img 
                     src={BRAND_LOGO_URL} 
                     alt="BioBots: Genesys" 
                     className="relative z-10 w-[85%] sm:w-[70%] md:w-full max-w-[320px] sm:max-w-[450px] md:max-w-[600px] lg:max-w-[700px] h-auto max-h-[25vh] md:max-h-none object-contain drop-shadow-[0_0_20px_rgba(6,182,212,0.4)] transform transition-transform duration-700 group-hover:scale-105 animate-float"
                 />
-
-                {/* Cyberpunk Decor Lines (Desktop Only) */}
-                <div className="absolute -left-12 top-1/2 w-20 h-[1px] bg-gradient-to-r from-transparent to-tech-cyan/50 hidden md:block" />
-                <div className="absolute -right-12 top-1/2 w-20 h-[1px] bg-gradient-to-l from-transparent to-tech-cyan/50 hidden md:block" />
             </div>
         </div>
 
-        {/* --- LEFT PANEL (Form & Controls) --- */}
         <div className="w-full md:w-1/2 flex flex-col gap-6 max-w-xl animate-fade-in-up pb-12 md:pb-0">
-            
-            {/* Glass Panel: Consolidated Form & Avatar Selection */}
             <div className="backdrop-blur-xl bg-slate-900/70 rounded-3xl border border-tech-cyan/20 shadow-[0_0_50px_rgba(6,182,212,0.1)] p-6 md:p-8 flex flex-col gap-6 relative overflow-hidden">
-                {/* Decorative corner glow */}
-                <div className="absolute top-0 left-0 w-20 h-20 bg-tech-cyan/5 blur-xl rounded-br-full" />
-                
-                {/* Version & Status Header */}
                 <div className="flex items-center gap-3 opacity-90 pb-4 border-b border-white/10">
                     <div className="h-[1px] w-8 bg-gradient-to-r from-transparent to-neon-green" />
                     <h2 className="text-[10px] md:text-xs font-mono text-neon-green tracking-[0.2em] uppercase flex items-center gap-2">
@@ -178,12 +160,10 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                     </h2>
                 </div>
 
-                {/* Description */}
                 <p className="text-gray-300 font-mono text-[10px] md:text-sm leading-relaxed border-l-2 border-tech-cyan/50 pl-4">
                     Tu misión es construir, optimizar y expandir un ecosistema de BioBots capaces de evolucionar, minar recursos y adaptarse.
                 </p>
 
-                {/* CONTINUE BUTTON */}
                 {hasSaveGame && onContinue && (
                     <button 
                     onClick={onContinue}
@@ -194,7 +174,6 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                     </button>
                 )}
 
-                {/* NAME INPUT */}
                 <div className="relative group">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 text-tech-cyan group-focus-within:text-neon-green transition-colors" size={20} />
                     <input 
@@ -206,23 +185,16 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                     />
                 </div>
 
-                {/* AVATAR SELECTION COMPACT */}
                 <div className="space-y-3 bg-black/20 p-4 rounded-2xl border border-white/5">
                     <div className="flex items-center justify-between">
                         <h3 className="font-tech text-[10px] md:text-sm text-tech-purple flex items-center gap-2">
                             <Cpu size={14}/> Selección de Avatar
                         </h3>
-                        <div className="text-[10px] text-neon-green font-mono tracking-wider">{name ? name.toUpperCase() : "NO_DATA"}</div>
                     </div>
-                    
                     <div className="flex gap-4 items-center">
-                         {/* Large Preview */}
                          <div className="relative w-12 h-12 md:w-20 md:h-20 shrink-0">
-                             <div className="absolute inset-0 bg-tech-cyan/20 rounded-full animate-pulse" />
                              <img src={selectedAvatar} alt="Selected" className="w-full h-full rounded-full object-cover border-2 border-tech-cyan shadow-[0_0_15px_rgba(6,182,212,0.5)] bg-black/50" />
                          </div>
-                         
-                         {/* Grid */}
                          <div className="flex-1 grid grid-cols-5 gap-1 md:gap-2">
                             {AVATAR_PRESETS.map((avatar, idx) => (
                                 <button
@@ -237,21 +209,17 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                     </div>
                 </div>
                 
-                {/* START BUTTON */}
                 <button 
                 onClick={() => name && onStart(name, selectedAvatar)}
                 disabled={!name}
                 className={`w-full py-4 rounded-xl flex items-center justify-center gap-3 font-tech font-bold tracking-widest transition-all duration-300 relative overflow-hidden group ${name ? 'bg-tech-cyan/20 text-tech-cyan border border-tech-cyan hover:bg-tech-cyan hover:text-deep-space hover:shadow-[0_0_30px_rgba(6,182,212,0.6)]' : 'bg-gray-800/50 text-gray-600 border border-gray-700 cursor-not-allowed'}`}
                 >
-                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
                 <Play size={20} fill="currentColor" />
                 EJECUTAR NUEVA SIMULACIÓN
                 </button>
             </div>
 
-            {/* SOCIAL STATS (Outside Panel) */}
             <div className="grid grid-cols-2 gap-4">
-                 {/* Visit Counter */}
                 <div className="bg-slate-900/40 backdrop-blur-md border border-white/10 rounded-xl p-3 flex items-center justify-between hover:bg-slate-800/60 transition-colors group cursor-default">
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
@@ -259,15 +227,13 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                         </div>
                         <div>
                             <p className="text-[8px] md:text-[9px] text-gray-500 font-mono font-bold uppercase tracking-wider">Accesos</p>
-                            <p className="text-sm md:text-lg font-tech font-bold text-white group-hover:text-blue-200 transition-colors">
+                            <p className="text-sm md:text-lg font-tech font-bold text-white">
                                 {visitCount.toLocaleString()}
                             </p>
                         </div>
                     </div>
-                    <Activity size={16} className="text-blue-500/20 group-hover:text-blue-400 transition-colors" />
                 </div>
 
-                {/* Like Counter */}
                 <button 
                     onClick={handleLike}
                     className={`bg-slate-900/40 backdrop-blur-md border rounded-xl p-3 flex items-center justify-between transition-all group ${hasLiked ? 'border-neon-green/50 bg-neon-green/5 shadow-[0_0_15px_rgba(34,197,94,0.1)]' : 'border-white/10 hover:bg-slate-800/60'}`}
@@ -278,69 +244,40 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
                         </div>
                         <div className="text-left">
                             <p className="text-[8px] md:text-[9px] text-gray-500 font-mono font-bold uppercase tracking-wider">Aprobación</p>
-                            <p className={`text-sm md:text-lg font-tech font-bold transition-colors ${hasLiked ? 'text-neon-green' : 'text-white'}`}>
+                            <p className={`text-sm md:text-lg font-tech font-bold ${hasLiked ? 'text-neon-green' : 'text-white'}`}>
                                 {likeCount.toLocaleString()}
                             </p>
                         </div>
                     </div>
                 </button>
             </div>
-
         </div>
-
       </div>
 
       {/* --- CREDITS & DEDICATION MODAL --- */}
       {showCredits && (
           <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
               <div className="bg-[#0f172a] border border-tech-cyan/30 w-full max-w-5xl rounded-3xl shadow-[0_0_60px_rgba(6,182,212,0.2)] overflow-hidden flex flex-col md:flex-row max-h-[90vh] md:h-[600px] animate-pop-in relative">
-                  
-                  {/* Close Button */}
-                  <button 
-                    onClick={() => setShowCredits(false)}
-                    className="absolute top-4 right-4 z-20 text-gray-500 hover:text-white bg-black/50 rounded-full p-2 transition-colors"
-                  >
-                      <X size={24} />
-                  </button>
-
-                  {/* LEFT: Text Content */}
+                  <button onClick={() => setShowCredits(false)} className="absolute top-4 right-4 z-20 text-gray-500 hover:text-white bg-black/50 rounded-full p-2 transition-colors"><X size={24} /></button>
                   <div className="flex-1 p-8 md:p-12 flex flex-col justify-center relative overflow-hidden overflow-y-auto">
-                      {/* Decorative Background Elements */}
-                      <div className="absolute top-0 left-0 w-32 h-32 border-t-2 border-l-2 border-tech-cyan/20 rounded-tl-3xl" />
-                      <div className="absolute bottom-0 right-0 w-32 h-32 border-b-2 border-r-2 border-tech-purple/20 rounded-br-3xl" />
-                      
                       <div className="relative z-10 space-y-6">
                           <div className="flex items-center gap-3 text-tech-cyan mb-2">
                               <Heart className="fill-current animate-pulse" size={24} />
                               <span className="font-mono tracking-widest uppercase font-bold">Dedicatoria</span>
                           </div>
-
-                          <h2 className="text-3xl md:text-5xl font-tech font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 leading-tight">
-                              Para Santiago
-                          </h2>
-
+                          <h2 className="text-3xl md:text-5xl font-tech font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 leading-tight">Para Santiago</h2>
                           <div className="w-16 h-1 bg-gradient-to-r from-tech-cyan to-tech-purple" />
-
                           <p className="font-sans text-base md:text-xl text-gray-300 leading-relaxed font-light italic opacity-90">
                               "Este juego fue creado por <strong className="text-white font-semibold">Leonardo Patiño Rodríguez</strong> en el año 2025 para su hijo <strong className="text-tech-cyan font-semibold">Santiago Patiño David</strong>, de 8 años, a quien quiere profundamente. Esta obra está dedicada a su curiosidad, imaginación y sueños."
                           </p>
-
                           <div className="pt-8 flex items-center gap-4 opacity-50">
                               <Cpu size={20} />
                               <span className="font-mono text-sm">BIOBOTS SYSTEM {GAME_VERSION}</span>
                           </div>
                       </div>
                   </div>
-
-                  {/* RIGHT: Image Content */}
                   <div className="flex-1 relative h-64 md:h-auto bg-black">
-                      <div className="absolute inset-0 bg-gradient-to-b md:bg-gradient-to-r from-[#0f172a] to-transparent z-10" />
-                      <img 
-                        src={DEDICATION_IMAGE_URL} 
-                        alt="Dedicatoria" 
-                        className="w-full h-full object-cover object-center opacity-80 hover:opacity-100 transition-opacity duration-1000"
-                      />
-                      <div className="absolute inset-0 border-l border-white/10 hidden md:block" />
+                      <img src={DEDICATION_IMAGE_URL} alt="Dedicatoria" className="w-full h-full object-cover object-center opacity-80" />
                   </div>
               </div>
           </div>
@@ -350,56 +287,68 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
       {showLore && (
           <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
               <div className="bg-[#0f172a] border border-yellow-500/20 w-full max-w-4xl rounded-2xl shadow-[0_0_60px_rgba(234,179,8,0.15)] flex flex-col max-h-[90vh] overflow-hidden animate-pop-in relative">
-                  
-                  {/* Header */}
                   <div className="p-6 border-b border-white/10 flex justify-between items-center bg-slate-900/50">
                       <div className="flex items-center gap-4">
                           <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-yellow-500/10 border border-yellow-500/50 flex items-center justify-center text-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.2)]">
                               <BookOpen size={24} />
                           </div>
                           <div>
-                              <h2 className="font-tech text-xl md:text-3xl font-bold text-white tracking-wide">Historia</h2>
-                              <p className="text-[10px] text-yellow-500 font-mono uppercase tracking-[0.2em] flex items-center gap-2">
-                                  <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"/>
-                                  Archivos
-                              </p>
+                              <h2 className="font-tech text-xl md:text-3xl font-bold text-white tracking-wide">La Crónica de Genesys</h2>
+                              <p className="text-[10px] text-yellow-500 font-mono uppercase tracking-[0.2em] flex items-center gap-2">Archivos del Sistema</p>
                           </div>
                       </div>
-                      <button onClick={() => setShowLore(false)} className="text-gray-500 hover:text-white p-2 bg-black/30 rounded-full transition-colors border border-transparent hover:border-white/20">
-                          <X size={24} />
-                      </button>
+                      <button onClick={() => setShowLore(false)} className="text-gray-500 hover:text-white p-2 bg-black/30 rounded-full transition-colors border border-transparent hover:border-white/20"><X size={24} /></button>
                   </div>
 
-                  {/* Body Content */}
-                  <div className="flex-1 overflow-y-auto p-6 md:p-10 space-y-8 font-sans text-gray-300 leading-loose scrollbar-thin scrollbar-thumb-yellow-900 scrollbar-track-transparent">
-                      
-                      {/* Segment 1: Genesis */}
+                  <div className="flex-1 overflow-y-auto p-6 md:p-10 space-y-8 font-sans text-gray-300 leading-loose">
                       <div className="flex gap-6 items-start group">
                           <div className="hidden md:flex flex-col items-center gap-2 mt-1">
-                              <div className="p-2 rounded-lg bg-tech-cyan/10 text-tech-cyan border border-tech-cyan/30 group-hover:scale-110 transition-transform">
-                                  <Zap size={20} />
-                              </div>
+                              <div className="p-2 rounded-lg bg-tech-cyan/10 text-tech-cyan border border-tech-cyan/30 group-hover:scale-110 transition-transform"><Zap size={20} /></div>
                               <div className="h-full w-px bg-gradient-to-b from-tech-cyan/30 to-transparent" />
                           </div>
                           <p className="text-sm md:text-lg">
-                              En un mundo físico donde la tecnología parece tener alma, el <strong className="text-white">Arquitecto</strong> despierta sobre un gran lienzo vivo que responde a su imaginación. Allí descubre su propósito: crear <strong className="text-tech-cyan">biobots</strong>, seres metálicos con luces que laten como si tuvieran emociones 🤖✨.
+                              En los albores de la red cuántica, el <strong className="text-white">Arquitecto</strong> despertó sobre un lienzo infinito de datos. Su conciencia dio forma a los <strong className="text-tech-cyan">BioBots</strong>, entidades cibernéticas diseñadas no solo para procesar, sino para existir. El mundo de Genesys no es un lugar, es un organismo vivo que late al ritmo del código binario.
                           </p>
                       </div>
 
-                      {/* Segment 2: Energy */}
                       <div className="flex gap-6 items-start group">
                           <div className="hidden md:flex flex-col items-center gap-2 mt-1">
-                              <div className="p-2 rounded-lg bg-neon-green/10 text-neon-green border border-neon-green/30 group-hover:scale-110 transition-transform">
-                                  <Database size={20} />
-                              </div>
+                              <div className="p-2 rounded-lg bg-neon-green/10 text-neon-green border border-neon-green/30 group-hover:scale-110 transition-transform"><Database size={20} /></div>
                               <div className="h-full w-px bg-gradient-to-b from-neon-green/30 to-transparent" />
                           </div>
                           <p className="text-sm md:text-lg">
-                              Para dar vida a este pequeño ecosistema, el Arquitecto construye <strong className="text-neon-green">granjas de servidores</strong> que generan energía 🌱. A medida que estas se cargan, cambian de amarillo a rosa y finalmente a verde, señalando su potencia máxima. Los biobots dependen de ellas para vivir y <strong className="text-white">minar criptomonedas</strong>.
+                              La supervivencia depende de los <strong className="text-neon-green">Nodos de Datos</strong>. Estas granjas de servidores alimentan a las unidades <strong className="text-orange-400">Beta</strong>, mineros incansables que transforman el flujo de información en <strong className="text-white">Criptomonedas</strong>. Sin embargo, este flujo de riqueza ha despertado sombras en los rincones más profundos del sistema.
                           </p>
                       </div>
 
-                      {/* Otros segmentos... */}
+                      <div className="flex gap-6 items-start group">
+                          <div className="hidden md:flex flex-col items-center gap-2 mt-1">
+                              <div className="p-2 rounded-lg bg-red-500/10 text-red-500 border border-red-500/30 group-hover:scale-110 transition-transform"><Shield size={20} /></div>
+                              <div className="h-full w-px bg-gradient-to-b from-red-500/30 to-transparent" />
+                          </div>
+                          <p className="text-sm md:text-lg">
+                              Los <strong className="text-red-500">Intrusos</strong> y los implacables <strong className="text-white">Agentes del Sistema</strong> patrullan el código, buscando anomalías para borrarlas. Para resistir, el Arquitecto debe desplegar unidades <strong className="text-red-400">Alfa</strong>, guerreros autónomos que protegen el Core Wallet con escudos de firewall y ataques de sobrecarga táctica.
+                          </p>
+                      </div>
+
+                      <div className="flex gap-6 items-start group">
+                          <div className="hidden md:flex flex-col items-center gap-2 mt-1">
+                              <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500 border border-purple-500/30 group-hover:scale-110 transition-transform"><TrendingUp size={20} /></div>
+                              <div className="h-full w-px bg-gradient-to-b from-purple-500/30 to-transparent" />
+                          </div>
+                          <p className="text-sm md:text-lg">
+                              El mayor misterio de Genesys es la <strong className="text-purple-400">Evolución Digital</strong>. Tras recolectar suficientes datos de combate o minería, los BioBots rompen sus limitaciones básicas, alcanzando el estado Nivel 2: Unidades Alfa-Titán y Beta-Recolectoras, capaces de controlar el flujo del tiempo y la materia digital.
+                          </p>
+                      </div>
+
+                      <div className="flex gap-6 items-start group pb-4">
+                          <div className="hidden md:flex flex-col items-center gap-2 mt-1">
+                              <div className="p-2 rounded-lg bg-white/10 text-white border border-white/30 group-hover:scale-110 transition-transform"><Binary size={20} /></div>
+                          </div>
+                          <p className="text-sm md:text-lg italic">
+                              "Al final, no somos solo el código que escribimos, sino la civilización que nace de nuestros algoritmos." — Fragmento recuperado del Archivo Cero.
+                          </p>
+                      </div>
                   </div>
               </div>
           </div>
@@ -409,42 +358,69 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSaveGame, 
       {showAbout && (
           <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
               <div className="bg-[#0f172a] border border-tech-cyan/30 w-full max-w-4xl rounded-2xl shadow-[0_0_60px_rgba(6,182,212,0.2)] flex flex-col max-h-[90vh] overflow-hidden animate-pop-in relative">
-                  
-                  {/* Header */}
                   <div className="p-6 border-b border-white/10 flex justify-between items-center bg-slate-900/50">
                       <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-tech-cyan/10 border border-tech-cyan/50 flex items-center justify-center text-tech-cyan">
-                              <Code2 size={24} />
-                          </div>
+                          <div className="w-10 h-10 rounded-lg bg-tech-cyan/10 border border-tech-cyan/50 flex items-center justify-center text-tech-cyan"><Code2 size={24} /></div>
                           <div>
-                              <h2 className="font-tech text-xl md:text-2xl font-bold text-white tracking-wide">Arquitectura</h2>
-                              <p className="text-[10px] text-gray-400 font-mono uppercase tracking-widest">Stack Tecnológico</p>
+                              <h2 className="font-tech text-xl md:text-2xl font-bold text-white tracking-wide">Arquitectura del Sistema</h2>
+                              <p className="text-[10px] text-gray-400 font-mono uppercase tracking-widest">Stack Tecnológico Genesys</p>
                           </div>
                       </div>
-                      <button onClick={() => setShowAbout(false)} className="text-gray-500 hover:text-white p-2 bg-black/30 rounded-full">
-                          <X size={24} />
-                      </button>
+                      <button onClick={() => setShowAbout(false)} className="text-gray-500 hover:text-white p-2 bg-black/30 rounded-full"><X size={24} /></button>
                   </div>
 
-                  {/* Body Content */}
                   <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 font-sans">
                       <div className="bg-gradient-to-r from-slate-800/50 to-transparent p-4 rounded-xl border-l-4 border-tech-cyan">
                           <p className="text-gray-300 leading-relaxed text-sm md:text-base">
-                              <strong className="text-white">BioBots</strong> está desarrollado como una <strong className="text-tech-cyan">Progressive Web App (PWA)</strong> utilizando React + TypeScript + Vite.
+                              <strong className="text-white">BioBots: Genesys</strong> está diseñado sobre una infraestructura de alta fidelidad, utilizando un stack moderno para garantizar una experiencia de simulación fluida en tiempo real y capacidad de juego sin conexión.
                           </p>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          {/* Core */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                           <div className="bg-black/30 p-4 rounded-xl border border-white/5 space-y-3 hover:border-tech-cyan/30 transition-colors group">
-                              <div className="flex items-center gap-2 text-tech-cyan font-bold font-mono text-sm uppercase mb-2">
-                                  <Zap size={16} /> Core
-                              </div>
+                              <div className="flex items-center gap-2 text-tech-cyan font-bold font-mono text-sm uppercase mb-2"><Layout size={16} /> Frontend</div>
                               <ul className="space-y-2 text-xs md:text-sm text-gray-400">
-                                  <li className="flex items-start gap-2">React 18</li>
-                                  <li className="flex items-start gap-2">TypeScript</li>
+                                  <li>• React 18 + TS</li>
+                                  <li>• Vite (HMR Engine)</li>
+                                  <li>• Tailwind CSS 3.4</li>
                               </ul>
                           </div>
+
+                          <div className="bg-black/30 p-4 rounded-xl border border-white/5 space-y-3 hover:border-tech-purple/30 transition-colors group">
+                              <div className="flex items-center gap-2 text-tech-purple font-bold font-mono text-sm uppercase mb-2"><Layers size={16} /> Lógica</div>
+                              <ul className="space-y-2 text-xs md:text-sm text-gray-400">
+                                  <li>• Game Loop (RequestAnim)</li>
+                                  <li>• Física de Colisiones</li>
+                                  <li>• IA de Comportamiento</li>
+                              </ul>
+                          </div>
+
+                          <div className="bg-black/30 p-4 rounded-xl border border-white/5 space-y-3 hover:border-neon-green/30 transition-colors group">
+                              <div className="flex items-center gap-2 text-neon-green font-bold font-mono text-sm uppercase mb-2"><HardDrive size={16} /> Datos</div>
+                              <ul className="space-y-2 text-xs md:text-sm text-gray-400">
+                                  <li>• Local Storage Persist</li>
+                                  <li>• Auto-Save (5 min)</li>
+                                  <li>• DiceBear API</li>
+                              </ul>
+                          </div>
+
+                          <div className="bg-black/30 p-4 rounded-xl border border-white/5 space-y-3 hover:border-yellow-500/30 transition-colors group">
+                              <div className="flex items-center gap-2 text-yellow-500 font-bold font-mono text-sm uppercase mb-2"><Smartphone size={16} /> PWA</div>
+                              <ul className="space-y-2 text-xs md:text-sm text-gray-400">
+                                  <li>• Service Workers</li>
+                                  <li>• Manifiesto Web</li>
+                                  <li>• Offline Ready</li>
+                              </ul>
+                          </div>
+                      </div>
+                      
+                      <div className="bg-slate-900/50 p-6 rounded-2xl border border-white/10">
+                          <h4 className="font-tech text-white mb-4 flex items-center gap-2 uppercase tracking-widest text-sm">
+                              <Zap size={16} className="text-yellow-500" /> Rendimiento & Optimización
+                          </h4>
+                          <p className="text-gray-400 text-xs md:text-sm leading-relaxed">
+                              El sistema utiliza técnicas de <strong className="text-tech-cyan">renderizado condicional</strong> y un motor de estado centralizado para manejar cientos de entidades simultáneas sin degradar la tasa de cuadros. Los assets visuales se cargan de forma diferida para minimizar el tiempo de inicio inicial.
+                          </p>
                       </div>
                   </div>
               </div>
